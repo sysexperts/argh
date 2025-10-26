@@ -23,11 +23,13 @@ class AuthService
      */
     public function login(string $email, string $password): ?User
     {
+        // WICHTIG: Beim Login NUR nach Email suchen, nicht nach tenant_id!
+        // Der Tenant wird aus dem User-Objekt gelesen.
         $stmt = $this->db->prepare("
             SELECT * FROM users 
-            WHERE email = ? AND tenant_id = ? AND is_active = 1
+            WHERE email = ? AND is_active = 1
         ");
-        $stmt->execute([$email, $this->tenantId]);
+        $stmt->execute([$email]);
         $userData = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$userData) {
@@ -185,11 +187,13 @@ class AuthService
      */
     public function getUserById(int $id): ?User
     {
+        // WICHTIG: Nicht nach tenant_id filtern, da User bereits authentifiziert ist
+        // und wir seinen Tenant aus der DB laden wollen
         $stmt = $this->db->prepare("
             SELECT * FROM users 
-            WHERE id = ? AND tenant_id = ?
+            WHERE id = ?
         ");
-        $stmt->execute([$id, $this->tenantId]);
+        $stmt->execute([$id]);
         $userData = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $userData ? new User($userData) : null;
