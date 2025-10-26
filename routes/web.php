@@ -54,10 +54,18 @@ $app->get('/dashboard', function (Request $request, Response $response) use ($co
     $db = $container->get(Database::class);
     $navService = new NavigationService($db);
 
-    // Hole Stats (angepasst an neue Tabelle 'users')
+    // Hole Tenant-ID vom aktuellen User
+    $tenantId = $currentUser->getTenantId();
+    
+    // Hole echte Stats aus der Datenbank (MIT TENANT-ISOLATION!)
     $stats = [
-        'users' => $db->fetchOne('SELECT COUNT(*) as count FROM users')['count'] ?? 0,
-        'modules' => 0,
+        'total_users' => $db->fetchOne('SELECT COUNT(*) as count FROM users WHERE tenant_id = ? AND is_active = 1', [$tenantId])['count'] ?? 0,
+        'total_customers' => $db->fetchOne('SELECT COUNT(*) as count FROM bm_customers WHERE tenant_id = ? AND is_active = 1', [$tenantId])['count'] ?? 0,
+        'total_invoices' => $db->fetchOne('SELECT COUNT(*) as count FROM bm_invoices WHERE tenant_id = ?', [$tenantId])['count'] ?? 0,
+        'pending_invoices' => $db->fetchOne('SELECT COUNT(*) as count FROM bm_invoices WHERE tenant_id = ? AND status IN ("draft", "sent")', [$tenantId])['count'] ?? 0,
+        'total_revenue' => $db->fetchOne('SELECT SUM(total) as sum FROM bm_invoices WHERE tenant_id = ? AND status = "paid"', [$tenantId])['sum'] ?? 0,
+        'pending_amount' => $db->fetchOne('SELECT SUM(total) as sum FROM bm_invoices WHERE tenant_id = ? AND status IN ("sent", "overdue")', [$tenantId])['sum'] ?? 0,
+        'active_modules' => $db->fetchOne('SELECT COUNT(DISTINCT module_id) as count FROM bm_module_licenses WHERE tenant_id = ? AND user_id = ? AND is_enabled = 1', [$tenantId, $currentUser->getId()])['count'] ?? 0,
     ];
 
     // Für Layout
