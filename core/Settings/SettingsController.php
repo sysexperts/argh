@@ -45,7 +45,7 @@ class SettingsController
         }
 
         $navService = new NavigationService($this->db);
-        $navigation = $navService->getNavigation($user['id'], '/settings');
+        $navigation = $navService->getNavigation($user['id'], '/settings', $user['role'] ?? 'user');
 
         ob_start();
         require __DIR__ . '/../../resources/views/settings/index.php';

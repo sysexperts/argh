@@ -11,6 +11,8 @@ use Slim\Routing\RouteCollectorProxy;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use SysExperts\BusinessManager\Auth\AuthController;
+use SysExperts\BusinessManager\Auth\AuthMiddleware;
+use SysExperts\BusinessManager\Auth\LicenseMiddleware;
 use SysExperts\BusinessManager\Auth\SessionService;
 use SysExperts\BusinessManager\Auth\SessionManager;
 use SysExperts\BusinessManager\Auth\AuthService as CoreAuthService;

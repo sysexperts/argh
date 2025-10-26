@@ -44,7 +44,7 @@ class CustomerController
         ");
 
         $navService = new NavigationService($this->db);
-        $navigation = $navService->getNavigation($user['id'], '/customers');
+        $navigation = $navService->getNavigation($user['id'], '/customers', $user['role'] ?? 'user');
 
         ob_start();
         require __DIR__ . '/../../resources/views/customers/index.php';

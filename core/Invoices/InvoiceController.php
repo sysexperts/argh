@@ -13,6 +13,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use SysExperts\BusinessManager\Database\Database;
 use SysExperts\BusinessManager\Auth\SessionService;
+use SysExperts\BusinessManager\Auth\LicenseChecker;
 use SysExperts\BusinessManager\Navigation\NavigationService;
 
 class InvoiceController
@@ -37,6 +38,13 @@ class InvoiceController
 
         $user = $this->session->getUser();
         
+        // Lizenzprüfung
+        $licenseChecker = new LicenseChecker($this->db);
+        if (!$licenseChecker->hasLicense($user['id'], 'invoices', $user['role'] ?? 'user')) {
+            $_SESSION['error'] = 'Sie haben keine Lizenz für das Rechnungs-Modul. Bitte aktivieren Sie es im Marketplace.';
+            return $response->withHeader('Location', '/marketplace')->withStatus(302);
+        }
+        
         // Hole alle Rechnungen
         $invoices = $this->db->fetchAll("
             SELECT * FROM bm_invoices
@@ -45,7 +53,7 @@ class InvoiceController
 
         // Navigation
         $navService = new NavigationService($this->db);
-        $navigation = $navService->getNavigation($user['id'], '/invoices');
+        $navigation = $navService->getNavigation($user['id'], '/invoices', $user['role'] ?? 'user');
 
         // Mache $this->db für View verfügbar
         $db = $this->db;
@@ -83,7 +91,7 @@ class InvoiceController
 
         // Navigation
         $navService = new NavigationService($this->db);
-        $navigation = $navService->getNavigation($user['id'], '/invoices');
+        $navigation = $navService->getNavigation($user['id'], '/invoices', $user['role'] ?? 'user');
 
         ob_start();
         require __DIR__ . '/../../resources/views/invoices/show.php';

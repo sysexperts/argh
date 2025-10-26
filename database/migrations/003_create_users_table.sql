@@ -1,4 +1,4 @@
--- Benutzer-Tabelle
+- Benutzer-Tabelle
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     tenant_id INT NOT NULL,
