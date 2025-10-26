@@ -10,84 +10,63 @@ declare(strict_types=1);
 use Slim\Routing\RouteCollectorProxy;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use SysExperts\BusinessManager\Auth\AuthController;
+use SysExperts\BusinessManager\Auth\SessionService;
+use SysExperts\BusinessManager\Auth\SessionManager;
+use SysExperts\BusinessManager\Auth\AuthService as CoreAuthService;
+use SysExperts\BusinessManager\Database\Database;
+use SysExperts\BusinessManager\Navigation\NavigationService;
+use SysExperts\BusinessManager\Users\UserController;
+use SysExperts\BusinessManager\Modules\ModuleController;
+use SysExperts\BusinessManager\Invoices\InvoiceController;
+use SysExperts\BusinessManager\Customers\CustomerController;
+use SysExperts\BusinessManager\Settings\SettingsController;
 
-// Home / Dashboard
-$app->get('/', function (Request $request, Response $response) {
-    $response->getBody()->write('
-        <!DOCTYPE html>
-        <html lang="de">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Business Manager - sys-experts.de</title>
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    min-height: 100vh;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                }
-                .container {
-                    text-align: center;
-                    padding: 2rem;
-                }
-                h1 { font-size: 3rem; margin-bottom: 1rem; }
-                p { font-size: 1.2rem; opacity: 0.9; margin-bottom: 2rem; }
-                .status {
-                    background: rgba(255,255,255,0.1);
-                    backdrop-filter: blur(10px);
-                    border-radius: 12px;
-                    padding: 2rem;
-                    margin-top: 2rem;
-                }
-                .status-item {
-                    display: flex;
-                    justify-content: space-between;
-                    padding: 0.5rem 0;
-                    border-bottom: 1px solid rgba(255,255,255,0.1);
-                }
-                .status-item:last-child { border-bottom: none; }
-                .badge {
-                    background: #10b981;
-                    padding: 0.25rem 0.75rem;
-                    border-radius: 6px;
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🚀 Business Manager</h1>
-                <p>Modulare mandantenfähige Business-Software</p>
-                <p style="font-size: 1rem; opacity: 0.7;">von sys-experts.de</p>
-                
-                <div class="status">
-                    <div class="status-item">
-                        <span>System Status</span>
-                        <span class="badge">✓ Online</span>
-                    </div>
-                    <div class="status-item">
-                        <span>PHP Version</span>
-                        <span class="badge">' . PHP_VERSION . '</span>
-                    </div>
-                    <div class="status-item">
-                        <span>Framework</span>
-                        <span class="badge">Slim 4</span>
-                    </div>
-                    <div class="status-item">
-                        <span>Datenbank</span>
-                        <span class="badge">SQLite</span>
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
-    ');
+// Home - Redirect zu Login oder Dashboard
+$app->get('/', function (Request $request, Response $response) use ($container) {
+    // Nutze neuen SessionManager + AuthService
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if ($currentUser) {
+        return $response->withHeader('Location', '/dashboard')->withStatus(302);
+    }
+
+    return $response->withHeader('Location', '/auth/login')->withStatus(302);
+});
+
+// Dashboard
+$app->get('/dashboard', function (Request $request, Response $response) use ($container) {
+    // Auth-Check mit neuem SessionManager
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser) {
+        return $response->withHeader('Location', '/auth/login')->withStatus(302);
+    }
+
+    $db = $container->get(Database::class);
+    $navService = new NavigationService($db);
+
+    // Hole Stats (angepasst an neue Tabelle 'users')
+    $stats = [
+        'users' => $db->fetchOne('SELECT COUNT(*) as count FROM users')['count'] ?? 0,
+        'modules' => 0,
+    ];
+
+    // Für Layout
+    $user = $currentUser->toPublicArray();
+    $navigation = $navService->getNavigation($currentUser->getId(), '/dashboard');
+    
+    ob_start();
+    require __DIR__ . '/../resources/views/dashboard.php';
+    $html = ob_get_clean();
+    
+    $response->getBody()->write($html);
     return $response;
 });
 
@@ -103,20 +82,401 @@ $app->get('/api/health', function (Request $request, Response $response) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-// Auth Routes (später)
-$app->group('/auth', function (RouteCollectorProxy $group) {
-    $group->get('/login', function (Request $request, Response $response) {
-        $response->getBody()->write('Login Page - Coming Soon');
-        return $response;
+// Auth Routes
+$app->group('/auth', function (RouteCollectorProxy $group) use ($container) {
+    // Login anzeigen
+    $group->get('/login', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->showLogin($request, $response);
     });
     
-    $group->post('/login', function (Request $request, Response $response) {
-        $response->getBody()->write('Login Handler - Coming Soon');
-        return $response;
+    // Login verarbeiten
+    $group->post('/login', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->login($request, $response);
     });
     
-    $group->get('/logout', function (Request $request, Response $response) {
-        $response->getBody()->write('Logout Handler - Coming Soon');
-        return $response;
+    // Logout
+    $group->get('/logout', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->logout($request, $response);
+    });
+    
+    // Registrierung anzeigen
+    $group->get('/register', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->showRegister($request, $response);
+    });
+    
+    // Registrierung verarbeiten
+    $group->post('/register', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->register($request, $response);
+    });
+    
+    // E-Mail verifizieren
+    $group->get('/verify-email', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->verifyEmail($request, $response);
+    });
+});
+
+// User Routes
+$app->group('/users', function (RouteCollectorProxy $group) use ($container) {
+    // Liste
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new UserController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Erstellen
+    $group->post('', function (Request $request, Response $response) use ($container) {
+        $controller = new UserController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->store($request, $response);
+    });
+    
+    // Aktualisieren
+    $group->post('/{id}/update', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new UserController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->update($request, $response, $args);
+    });
+    
+    // Deaktivieren
+    $group->post('/{id}/delete', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new UserController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->delete($request, $response, $args);
+    });
+    
+    // Aktivieren
+    $group->post('/{id}/activate', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new UserController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->activate($request, $response, $args);
+    });
+});
+
+// Module Routes
+$app->group('/modules', function (RouteCollectorProxy $group) use ($container) {
+    // Übersicht
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new ModuleController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Aktivieren
+    $group->post('/{id}/activate', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new ModuleController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->activate($request, $response, $args);
+    });
+    
+    // Deaktivieren
+    $group->post('/{id}/deactivate', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new ModuleController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->deactivate($request, $response, $args);
+    });
+});
+
+// Marketplace Route
+$app->get('/marketplace', function (Request $request, Response $response) use ($container) {
+    $controller = new ModuleController(
+        $container->get(Database::class),
+        $container->get(SessionService::class)
+    );
+    return $controller->marketplace($request, $response);
+});
+
+// Customer Routes
+$app->group('/customers', function (RouteCollectorProxy $group) use ($container) {
+    // Liste
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new CustomerController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Erstellen
+    $group->post('', function (Request $request, Response $response) use ($container) {
+        $controller = new CustomerController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->store($request, $response);
+    });
+    
+    // Bearbeiten
+    $group->post('/{id}/update', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new CustomerController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->update($request, $response, $args);
+    });
+    
+    // Deaktivieren
+    $group->post('/{id}/delete', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new CustomerController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->delete($request, $response, $args);
+    });
+});
+
+// Settings Routes
+$app->group('/settings', function (RouteCollectorProxy $group) use ($container) {
+    // Anzeigen
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new SettingsController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Speichern
+    $group->post('/update', function (Request $request, Response $response) use ($container) {
+        $controller = new SettingsController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->update($request, $response);
+    });
+});
+
+// Invoice Routes
+$app->group('/invoices', function (RouteCollectorProxy $group) use ($container) {
+    // Liste
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new InvoiceController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Details
+    $group->get('/{id}', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new InvoiceController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->show($request, $response, $args);
+    });
+    
+    // Erstellen
+    $group->post('', function (Request $request, Response $response) use ($container) {
+        $controller = new InvoiceController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->store($request, $response);
+    });
+    
+    // Item hinzufügen
+    $group->post('/{id}/items', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new InvoiceController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->addItem($request, $response, $args);
+    });
+    
+    // Item löschen
+    $group->post('/{id}/items/{item_id}/delete', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new InvoiceController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->deleteItem($request, $response, $args);
+    });
+    
+    // Status ändern
+    $group->post('/{id}/status', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new InvoiceController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->updateStatus($request, $response, $args);
+    });
+    
+    // Löschen
+    $group->post('/{id}/delete', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new InvoiceController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->delete($request, $response, $args);
+    });
+    
+    // PDF Export
+    $group->get('/{id}/pdf', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new InvoiceController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->exportPdf($request, $response, $args);
+    });
+});
+
+// Time Tracking Routes
+$app->group('/time-tracking', function (RouteCollectorProxy $group) use ($container) {
+    // Übersicht
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $pdo = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($pdo);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($pdo);
+        $controller = new \SysExperts\BusinessManager\TimeTracking\TimeTrackingController(
+            $container->get(Database::class),
+            $authService,
+            $sessionManager
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Arbeit starten
+    $group->post('/start', function (Request $request, Response $response) use ($container) {
+        $pdo = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($pdo);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($pdo);
+        $controller = new \SysExperts\BusinessManager\TimeTracking\TimeTrackingController(
+            $container->get(Database::class),
+            $authService,
+            $sessionManager
+        );
+        return $controller->startWork($request, $response);
+    });
+    
+    // Arbeit beenden
+    $group->post('/{id}/end', function (Request $request, Response $response, array $args) use ($container) {
+        $pdo = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($pdo);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($pdo);
+        $controller = new \SysExperts\BusinessManager\TimeTracking\TimeTrackingController(
+            $container->get(Database::class),
+            $authService,
+            $sessionManager
+        );
+        return $controller->endWork($request, $response, $args);
+    });
+    
+    // Pause starten
+    $group->post('/{id}/break/start', function (Request $request, Response $response, array $args) use ($container) {
+        $pdo = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($pdo);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($pdo);
+        $controller = new \SysExperts\BusinessManager\TimeTracking\TimeTrackingController(
+            $container->get(Database::class),
+            $authService,
+            $sessionManager
+        );
+        return $controller->startBreak($request, $response, $args);
+    });
+    
+    // Pause beenden
+    $group->post('/{id}/break/{break_id}/end', function (Request $request, Response $response, array $args) use ($container) {
+        $pdo = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($pdo);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($pdo);
+        $controller = new \SysExperts\BusinessManager\TimeTracking\TimeTrackingController(
+            $container->get(Database::class),
+            $authService,
+            $sessionManager
+        );
+        return $controller->endBreak($request, $response, $args);
+    });
+    
+    // Wochenübersicht (muss VOR /{id} stehen)
+    $group->get('/weekly-summary', function (Request $request, Response $response) use ($container) {
+        $pdo = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($pdo);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($pdo);
+        $controller = new \SysExperts\BusinessManager\TimeTracking\TimeTrackingController(
+            $container->get(Database::class),
+            $authService,
+            $sessionManager
+        );
+        return $controller->weeklySummary($request, $response);
+    });
+    
+    // CSV Export (muss VOR /{id} stehen)
+    $group->get('/export/csv', function (Request $request, Response $response) use ($container) {
+        $pdo = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($pdo);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($pdo);
+        $controller = new \SysExperts\BusinessManager\TimeTracking\TimeTrackingController(
+            $container->get(Database::class),
+            $authService,
+            $sessionManager
+        );
+        return $controller->exportCsv($request, $response);
+    });
+    
+    // PDF Export (muss VOR /{id} stehen)
+    $group->get('/export/pdf', function (Request $request, Response $response) use ($container) {
+        $pdo = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($pdo);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($pdo);
+        $controller = new \SysExperts\BusinessManager\TimeTracking\TimeTrackingController(
+            $container->get(Database::class),
+            $authService,
+            $sessionManager
+        );
+        return $controller->exportPdf($request, $response);
+    });
+    
+    // Details (dynamische Route muss NACH statischen Routen stehen)
+    $group->get('/{id}', function (Request $request, Response $response, array $args) use ($container) {
+        $pdo = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($pdo);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($pdo);
+        $controller = new \SysExperts\BusinessManager\TimeTracking\TimeTrackingController(
+            $container->get(Database::class),
+            $authService,
+            $sessionManager
+        );
+        return $controller->show($request, $response, $args);
     });
 });

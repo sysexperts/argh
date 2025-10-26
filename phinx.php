@@ -11,11 +11,6 @@ use Dotenv\Dotenv;
 $dotenv = Dotenv::createImmutable(__DIR__);
 $dotenv->safeLoad();
 
-// Lade DB-Config
-$dbConfig = require __DIR__ . '/config/database.php';
-$driver = $dbConfig['default'];
-$config = $dbConfig['connections'][$driver];
-
 // Phinx-Konfiguration
 return [
     'paths' => [
@@ -26,13 +21,8 @@ return [
         'default_migration_table' => 'phinx_migrations',
         'default_environment' => 'development',
         'development' => [
-            'adapter' => $driver === 'sqlite' ? 'sqlite' : $driver,
-            'host' => $config['host'] ?? null,
-            'name' => $driver === 'sqlite' ? $config['database'] : $config['database'],
-            'user' => $config['username'] ?? null,
-            'pass' => $config['password'] ?? null,
-            'port' => $config['port'] ?? null,
-            'charset' => $config['charset'] ?? 'utf8mb4',
+            'adapter' => 'sqlite',
+            'name' => __DIR__ . '/database/business_manager.sqlite',
         ],
     ],
     'version_order' => 'creation'
