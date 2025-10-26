@@ -92,6 +92,45 @@ $app->get('/api/health', function (Request $request, Response $response) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
+// Notification API Routes
+$app->group('/api/notifications', function (RouteCollectorProxy $group) use ($container) {
+    // Liste abrufen
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Notifications\NotificationController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Als gelesen markieren
+    $group->post('/{id}/read', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Notifications\NotificationController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->markAsRead($request, $response, $args);
+    });
+    
+    // Alle als gelesen markieren
+    $group->post('/read-all', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Notifications\NotificationController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->markAllAsRead($request, $response);
+    });
+    
+    // Löschen
+    $group->delete('/{id}', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Notifications\NotificationController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->delete($request, $response, $args);
+    });
+});
+
 // Auth Routes
 $app->group('/auth', function (RouteCollectorProxy $group) use ($container) {
     // Login anzeigen
@@ -404,6 +443,63 @@ $app->group('/invoices', function (RouteCollectorProxy $group) use ($container) 
             $container->get(SessionService::class)
         );
         return $controller->sendEmail($request, $response, $args);
+    });
+});
+
+// Helpdesk Routes
+$app->group('/helpdesk', function (RouteCollectorProxy $group) use ($container) {
+    // Übersicht
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Helpdesk\HelpdeskController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Ticket-Details
+    $group->get('/{id}', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Helpdesk\HelpdeskController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->show($request, $response, $args);
+    });
+    
+    // Neues Ticket erstellen
+    $group->post('', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Helpdesk\HelpdeskController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->store($request, $response);
+    });
+    
+    // Kommentar hinzufügen
+    $group->post('/{id}/comments', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Helpdesk\HelpdeskController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->addComment($request, $response, $args);
+    });
+    
+    // Status ändern
+    $group->post('/{id}/status', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Helpdesk\HelpdeskController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->updateStatus($request, $response, $args);
+    });
+    
+    // Zuweisen
+    $group->post('/{id}/assign', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Helpdesk\HelpdeskController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->assign($request, $response, $args);
     });
 });
 

@@ -147,12 +147,44 @@
                         </button>
 
                         <!-- Notifications -->
-                        <button class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 relative">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                            </svg>
-                            <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                        </button>
+                        <div x-data="notificationWidget()" x-init="init()" class="relative">
+                            <button @click="toggleDropdown()" class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 relative">
+                                <span class="material-symbols-outlined">notifications</span>
+                                <span x-show="unreadCount > 0" x-text="unreadCount" class="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full min-w-[1.25rem]"></span>
+                            </button>
+                            
+                            <!-- Dropdown -->
+                            <div x-show="showDropdown" @click.away="showDropdown = false" x-transition class="absolute right-0 mt-2 w-96 bg-card-light dark:bg-card-dark rounded-xl shadow-2xl border border-border-light dark:border-border-dark z-50">
+                                <div class="p-4 border-b border-border-light dark:border-border-dark flex items-center justify-between">
+                                    <h3 class="font-bold text-text-light dark:text-text-dark">Benachrichtigungen</h3>
+                                    <button @click="markAllAsRead()" class="text-xs text-primary hover:underline">Alle als gelesen</button>
+                                </div>
+                                
+                                <div class="max-h-96 overflow-y-auto">
+                                    <template x-if="notifications.length === 0">
+                                        <div class="p-8 text-center text-text-muted-light dark:text-text-muted-dark">
+                                            <span class="material-symbols-outlined text-4xl mb-2 opacity-50">notifications_off</span>
+                                            <p>Keine Benachrichtigungen</p>
+                                        </div>
+                                    </template>
+                                    
+                                    <template x-for="notification in notifications" :key="notification.id">
+                                        <div @click="markAsRead(notification.id); if(notification.link) window.location.href = notification.link;" 
+                                             :class="notification.is_read ? 'bg-transparent' : 'bg-primary/5'"
+                                             class="p-4 border-b border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors">
+                                            <div class="flex items-start gap-3">
+                                                <span class="material-symbols-outlined text-primary" x-text="notification.icon || 'notifications'"></span>
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="font-semibold text-sm text-text-light dark:text-text-dark" x-text="notification.title"></p>
+                                                    <p class="text-xs text-text-muted-light dark:text-text-muted-dark mt-1" x-text="notification.message"></p>
+                                                    <p class="text-xs text-text-muted-light dark:text-text-muted-dark mt-1" x-text="formatDate(notification.created_at)"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -166,6 +198,72 @@
 
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
+        // Notification Widget
+        function notificationWidget() {
+            return {
+                notifications: [],
+                unreadCount: 0,
+                showDropdown: false,
+                
+                init() {
+                    this.loadNotifications();
+                    // Aktualisiere alle 30 Sekunden
+                    setInterval(() => this.loadNotifications(), 30000);
+                },
+                
+                async loadNotifications() {
+                    try {
+                        const response = await fetch('/api/notifications');
+                        const data = await response.json();
+                        this.notifications = data.notifications || [];
+                        this.unreadCount = data.unread_count || 0;
+                    } catch (error) {
+                        console.error('Failed to load notifications:', error);
+                    }
+                },
+                
+                toggleDropdown() {
+                    this.showDropdown = !this.showDropdown;
+                },
+                
+                async markAsRead(id) {
+                    try {
+                        await fetch(`/api/notifications/${id}/read`, { method: 'POST' });
+                        const notification = this.notifications.find(n => n.id === id);
+                        if (notification) {
+                            notification.is_read = 1;
+                            this.unreadCount = Math.max(0, this.unreadCount - 1);
+                        }
+                    } catch (error) {
+                        console.error('Failed to mark as read:', error);
+                    }
+                },
+                
+                async markAllAsRead() {
+                    try {
+                        await fetch('/api/notifications/read-all', { method: 'POST' });
+                        this.notifications.forEach(n => n.is_read = 1);
+                        this.unreadCount = 0;
+                    } catch (error) {
+                        console.error('Failed to mark all as read:', error);
+                    }
+                },
+                
+                formatDate(dateString) {
+                    const date = new Date(dateString);
+                    const now = new Date();
+                    const diff = Math.floor((now - date) / 1000);
+                    
+                    if (diff < 60) return 'Gerade eben';
+                    if (diff < 3600) return `vor ${Math.floor(diff / 60)} Min.`;
+                    if (diff < 86400) return `vor ${Math.floor(diff / 3600)} Std.`;
+                    if (diff < 604800) return `vor ${Math.floor(diff / 86400)} Tagen`;
+                    
+                    return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                }
+            };
+        }
+        
         // Dark Mode Toggle
         document.addEventListener('DOMContentLoaded', () => {
             const darkModeToggle = document.getElementById('darkModeToggle');
