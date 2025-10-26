@@ -11,14 +11,17 @@ Business Manager ist eine flexible, modulare Business-Software mit folgenden Ker
 - **Lizenzbasiert**: 1€ pro Modul pro Benutzer pro Monat
 - **White-Label**: Logo, Farben, Produktname anpassbar
 - **GoBD-konform**: Revisionssichere Audit-Logs
-- **Update-System**: Automatische Updates mit Versionskontrolle
+- **Modern UI**: Dark Mode, responsive Design mit TailwindCSS
 
 ## 🛠️ Tech-Stack
 
 - **PHP 8.1+**
 - **Slim Framework 4** (Routing, Middleware)
-- **Phinx** (Database Migrations)
-- **SQLite** (Start) → MySQL/PostgreSQL (Produktion)
+- **PHP-DI** (Dependency Injection)
+- **SQLite** (Development) / MySQL (Production)
+- **TailwindCSS** (UI Framework)
+- **Alpine.js** (JavaScript Interaktivität)
+- **TCPDF** (PDF-Generierung)
 - **Composer** (Dependency Management)
 
 ## 📦 Installation
@@ -27,10 +30,11 @@ Business Manager ist eine flexible, modulare Business-Software mit folgenden Ker
 
 - PHP 8.1 oder höher
 - Composer
-- SQLite (oder MySQL/PostgreSQL)
+- SQLite (Development) oder MySQL (Production)
 - Apache/Nginx mit mod_rewrite
+- XAMPP empfohlen für Windows
 
-### Setup
+### Setup (Schnellstart)
 
 1. **Dependencies installieren**
    ```bash
@@ -42,120 +46,224 @@ Business Manager ist eine flexible, modulare Business-Software mit folgenden Ker
    copy .env.example .env
    ```
    
-   Passe `.env` an (DB-Verbindung, Lizenz-API, etc.)
+   Passe `.env` an (DB-Verbindung, etc.)
 
-3. **Datenbank-Migrationen ausführen**
+3. **Datenbank initialisieren**
    ```bash
-   composer migrate
+   php setup_database.php
+   php database/create_test_user.php
+   php database/seed_marketplace_modules.php
+   php create_invoice_tables.php
+   php create_customers_table.php
+   php create_settings_table.php
    ```
 
-4. **Initiale Daten einfügen (optional)**
+4. **Zeiterfassungs-Tabellen erstellen**
    ```bash
-   vendor/bin/phinx seed:run
+   php database/run_migration.php database/migrations/004_create_time_tracking_tables.sql
    ```
 
-5. **Webserver konfigurieren**
-   - DocumentRoot auf `public/` setzen
-   - mod_rewrite aktivieren
+5. **Webserver starten**
+   - XAMPP: Projekt in `htdocs/` ablegen
+   - DocumentRoot: `public/`
+   - URL: `http://localhost/sys-experts-toolbox/public/`
 
-6. **Im Browser öffnen**
-   ```
-   http://localhost/
-   ```
+6. **Login**
+   - E-Mail: `admin@sys-experts.de`
+   - Passwort: `admin123`
 
 ## 📁 Projektstruktur
 
 ```
 sys-experts-toolbox/
-├── bootstrap/          # App-Bootstrap
+├── bootstrap/          # App-Bootstrap & DI-Container
 ├── config/             # Konfigurationsdateien
-├── core/               # Core-System (Auth, Database, License, etc.)
-├── database/           # Migrationen & Seeds
-├── modules/            # Optionale Module
+├── core/               # Core-System
+│   ├── Auth/           # Authentifizierung, Session, User
+│   ├── Customers/      # Kundenverwaltung
+│   ├── Database/       # PDO-Wrapper & Query Builder
+│   ├── Invoices/       # Rechnungserstellung
+│   ├── Modules/        # Modul- & Lizenzverwaltung
+│   ├── Navigation/     # Dynamische Navigation
+│   ├── Settings/       # System-Einstellungen
+│   ├── TimeTracking/   # Zeiterfassung (ArbZG-konform)
+│   └── Users/          # Benutzerverwaltung
+├── database/           # Migrationen, Seeds, Setup-Scripts
 ├── public/             # Webroot (index.php, assets)
+│   └── assets/         # CSS, JS, Images
+├── resources/          # Views (PHP Templates)
+│   └── views/
+│       ├── auth/       # Login, Register
+│       ├── customers/  # Kundenverwaltung
+│       ├── invoices/   # Rechnungen
+│       ├── layouts/    # Layout-Templates
+│       ├── modules/    # Marketplace
+│       ├── settings/   # Einstellungen
+│       ├── time_tracking/  # Zeiterfassung
+│       └── users/      # Benutzerverwaltung
 ├── routes/             # Route-Definitionen
 ├── storage/            # Logs, Cache, Uploads
-├── tests/              # Unit/Integration Tests
 ├── .env.example        # Umgebungsvariablen Template
 ├── composer.json       # PHP Dependencies
-├── phinx.php           # Migrations-Konfiguration
 └── README.md
 ```
 
-## 🔑 Core-Module (immer aktiv)
+## ✅ Implementierte Features
 
-- **Auth** - Authentifizierung & Login
-- **Dashboard** - Startseite & Widgets
-- **User** - Benutzerverwaltung
-- **Notification** - Benachrichtigungssystem
-- **Tenant** - Mandanten-Einstellungen
-- **License** - Lizenzverwaltung
-- **Audit** - GoBD-konforme Audit-Logs
-- **Update** - Update-System
+### Core-System (immer verfügbar)
+- ✅ **Authentifizierung** - Login, Logout, Session-Management
+- ✅ **Dashboard** - Übersicht mit KPIs und Schnellzugriffen
+- ✅ **Benutzerverwaltung** - CRUD, Rollen, Aktivierung/Deaktivierung
+- ✅ **Lizenzverwaltung** - Pro User, Pro Modul
+- ✅ **Marketplace** - Module aktivieren/deaktivieren
+- ✅ **Einstellungen** - Firmendaten, Bank, Rechnungseinstellungen
+- ✅ **Navigation** - Dynamisch basierend auf Lizenzen
+- ✅ **Dark Mode** - Vollständig implementiert
 
-## 📦 Optionale Module (lizenzpflichtig)
+### Business-Module (lizenzpflichtig)
+- ✅ **Rechnungen** - Erstellen, Positionen, Status, PDF-Export
+- ✅ **Kunden** - CRUD, Kontaktdaten, Adressen
+- ✅ **Zeiterfassung** - Start/Stop, Pausen, ArbZG-Warnungen, Export
+- ⏳ **Projekte** - Geplant
+- ⏳ **Buchhaltung** - Geplant
+- ⏳ **Dokumente** - Geplant
 
-- **Invoices** - Rechnungserstellung
-- **Accounting** - Buchhaltung
-- **Timetracking** - Zeiterfassung
-- **CRM** - Kundenmanagement
-- **Projects** - Projektmanagement
+### Marketplace-Module (verfügbar)
+- Zeiterfassung (1€/Monat)
+- Rechnungen (1€/Monat)
+- Kundenverwaltung (1€/Monat)
+- Projektverwaltung (1€/Monat)
+- Dokumentenverwaltung (1€/Monat)
+- Kalender & Termine (1€/Monat)
 
 ## 🧪 Demo-Zugang
 
-Nach dem Seed (`phinx seed:run`):
+Nach dem Setup:
 
-- **URL**: http://localhost/
-- **E-Mail**: admin@demo.sys-experts.de
+- **URL**: http://localhost/sys-experts-toolbox/public/
+- **E-Mail**: admin@sys-experts.de
 - **Passwort**: admin123
+- **Rolle**: Administrator (voller Zugriff)
 
-## 🔧 Composer-Befehle
+### Test-Szenarien
+
+1. **Als Admin**: Alle Module sichtbar, Lizenzen verwalten
+2. **Neuen User anlegen**: Benutzerverwaltung → Neuer Benutzer
+3. **Lizenzen erteilen**: User auswählen → Lizenzen verwalten
+4. **Rechnung erstellen**: Rechnungen → Neue Rechnung
+5. **Zeit erfassen**: Zeiterfassung → Arbeit starten
+
+## 🔧 Nützliche Befehle
 
 ```bash
 # Dependencies installieren
 composer install
 
-# Migrationen ausführen
-composer migrate
+# Datenbank komplett neu aufsetzen
+php setup_database.php
+php database/create_test_user.php
+php database/seed_marketplace_modules.php
 
-# Migration zurückrollen
-composer migrate:rollback
+# Einzelne Tabellen erstellen
+php create_invoice_tables.php
+php create_customers_table.php
+php create_settings_table.php
 
-# Neue Migration erstellen
-composer migrate:create MigrationName
+# Testdaten generieren
+php database/seed_time_tracking.php
 
-# Tests ausführen
-composer test
+# Tabellen-Struktur prüfen
+php database/check_table.php
 ```
 
 ## 📝 Entwicklung
 
-### Neue Migration erstellen
+### Neues Modul hinzufügen
 
-```bash
-composer migrate:create CreateTableName
-```
+1. **Controller erstellen** in `core/ModuleName/`
+   ```php
+   class ModuleController {
+       public function index(Request $request, Response $response) { ... }
+   }
+   ```
 
-### Datenbank-Schema aktualisieren
+2. **Tabellen erstellen** via Setup-Script
+   ```php
+   // create_module_tables.php
+   $pdo->exec("CREATE TABLE IF NOT EXISTS bm_module_data ...");
+   ```
 
-```bash
-composer migrate
-```
+3. **Routes registrieren** in `routes/web.php`
+   ```php
+   $app->group('/module', function (RouteCollectorProxy $group) { ... });
+   ```
 
-### Neue Module hinzufügen
+4. **Views erstellen** in `resources/views/module/`
+   ```php
+   // index.php, show.php, etc.
+   ```
 
-1. Ordner in `modules/` erstellen (z.B. `modules/invoices/`)
-2. Modul in `config/modules.php` registrieren
-3. Migrations für Modul-Tabellen erstellen
-4. Controller, Models, Views implementieren
+5. **Modul im Marketplace registrieren**
+   ```sql
+   INSERT INTO bm_modules (code, name, description, category, price_per_user)
+   VALUES ('module', 'Modul-Name', 'Beschreibung', 'Kategorie', 1.00);
+   ```
+
+### Code-Konventionen
+
+- **PSR-12** Code Style
+- **Namespace**: `SysExperts\BusinessManager\ModuleName`
+- **Views**: PHP-Templates mit Output-Escaping
+- **Datenbank**: PDO mit Prepared Statements
+- **Auth**: SessionManager + AuthService verwenden
 
 ## 🔒 Sicherheit
 
-- Passwörter werden mit `password_hash()` (BCRYPT) gespeichert
-- SQL-Injection-Schutz via Prepared Statements
-- XSS-Schutz via Output-Escaping
-- CSRF-Schutz (geplant)
-- 2FA (geplant)
+### Implementiert
+- ✅ Passwörter mit `password_hash()` (BCRYPT)
+- ✅ SQL-Injection-Schutz via Prepared Statements
+- ✅ XSS-Schutz via `htmlspecialchars()`
+- ✅ Session-basierte Authentifizierung
+- ✅ Lizenz-basierte Zugriffskontrolle
+
+### Geplant
+- ⏳ CSRF-Protection
+- ⏳ 2FA (TOTP)
+- ⏳ IP-Whitelist
+- ⏳ Rate-Limiting
+- ⏳ Audit-Logging für alle Änderungen
+
+## 🗺️ Roadmap
+
+### Phase 1: Core-System (✅ Abgeschlossen)
+- ✅ Auth-System
+- ✅ Benutzerverwaltung
+- ✅ Lizenzverwaltung
+- ✅ Marketplace
+- ✅ Dashboard
+
+### Phase 2: Business-Module (🚧 In Arbeit)
+- ✅ Rechnungen (Basis)
+- ✅ Kunden (Basis)
+- ✅ Zeiterfassung (Basis)
+- ⏳ E-Mail-Versand
+- ⏳ PDF-Vorlagen
+- ⏳ GoBD-Konformität
+
+### Phase 3: Multi-Tenancy (⏳ Geplant)
+- ⏳ Tenant-Context in allen Queries
+- ⏳ Mandanten-Registrierung
+- ⏳ Setup-Assistent
+
+### Phase 4: Partner-Konsole (⏳ Geplant)
+- ⏳ Zentrale Übersicht
+- ⏳ Lizenzmanagement
+- ⏳ Monitoring
+
+### Phase 5: Update-System (⏳ Geplant)
+- ⏳ Auto-Updater
+- ⏳ Versionsverwaltung
+- ⏳ Rollback-Mechanismus
 
 ## 📄 Lizenz
 
@@ -165,8 +273,10 @@ Proprietär - sys-experts.de
 
 - **E-Mail**: support@sys-experts.de
 - **Website**: https://sys-experts.de
+- **Dokumentation**: Siehe `AGENTS.md` und `PROGRESS.md`
 
 ---
 
-**Version**: 0.1.0  
-**Stand**: 26.10.2025
+**Version**: 0.2.0 (Alpha)  
+**Stand**: 26.10.2025  
+**Status**: Development - Nicht produktionsreif
