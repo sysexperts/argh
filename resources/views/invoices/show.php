@@ -35,6 +35,20 @@ ob_start();
         </div>
     </div>
     <div class="flex gap-2">
+        <!-- E-Mail versenden -->
+        <form method="POST" action="/invoices/<?= $invoice['id'] ?>/send-email" class="inline">
+            <button type="submit" class="flex items-center gap-2 bg-primary hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors">
+                <span class="material-symbols-outlined">email</span>
+                <span>Per E-Mail senden</span>
+            </button>
+        </form>
+        
+        <!-- PDF Download -->
+        <a href="/invoices/<?= $invoice['id'] ?>/pdf" target="_blank" class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors">
+            <span class="material-symbols-outlined">picture_as_pdf</span>
+            <span>PDF</span>
+        </a>
+        
         <?php if ($invoice['status'] === 'draft'): ?>
             <form method="POST" action="/invoices/<?= $invoice['id'] ?>/status" class="inline">
                 <input type="hidden" name="status" value="sent">

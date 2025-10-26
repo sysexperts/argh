@@ -15,6 +15,7 @@ use SysExperts\BusinessManager\Database\Database;
 use SysExperts\BusinessManager\Auth\SessionService;
 use SysExperts\BusinessManager\Auth\LicenseChecker;
 use SysExperts\BusinessManager\Navigation\NavigationService;
+use SysExperts\BusinessManager\Mail\MailService;
 
 class InvoiceController
 {
@@ -289,5 +290,109 @@ class InvoiceController
             ->withHeader('Content-Disposition', 'attachment; filename="Rechnung_' . $invoice['invoice_number'] . '.pdf"')
             ->withHeader('Cache-Control', 'private, max-age=0, must-revalidate')
             ->withHeader('Pragma', 'public');
+    }
+
+    /**
+     * Rechnung per E-Mail versenden
+     */
+    public function sendEmail(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->session->isAuthenticated()) {
+            return $response->withHeader('Location', '/auth/login')->withStatus(302);
+        }
+
+        $user = $this->session->getUser();
+        $invoiceId = (int) $args['id'];
+        
+        // Hole Rechnung
+        $invoice = $this->db->fetchOne('SELECT * FROM bm_invoices WHERE id = ? AND tenant_id = ?', [$invoiceId, $user['tenant_id'] ?? 1]);
+        if (!$invoice) {
+            $_SESSION['error'] = 'Rechnung nicht gefunden';
+            return $response->withHeader('Location', '/invoices')->withStatus(302);
+        }
+
+        // Hole Kunden-E-Mail
+        $customer = $this->db->fetchOne('SELECT email, company_name FROM bm_customers WHERE id = ?', [$invoice['customer_id']]);
+        if (!$customer || empty($customer['email'])) {
+            $_SESSION['error'] = 'Kunde hat keine E-Mail-Adresse hinterlegt';
+            return $response->withHeader('Location', '/invoices/' . $invoiceId)->withStatus(302);
+        }
+
+        try {
+            // PDF generieren
+            $pdfService = new InvoicePdfService($this->db);
+            $pdfContent = $pdfService->generatePdf($invoiceId);
+            
+            // PDF temporär speichern
+            $tempPdfPath = sys_get_temp_dir() . '/invoice_' . $invoice['invoice_number'] . '.pdf';
+            file_put_contents($tempPdfPath, $pdfContent);
+
+            // E-Mail-Template rendern
+            $companyName = 'Business Manager'; // TODO: Aus Settings laden
+            ob_start();
+            $statusLabels = [
+                'draft' => 'Entwurf',
+                'sent' => 'Versendet',
+                'paid' => 'Bezahlt',
+                'overdue' => 'Überfällig',
+                'cancelled' => 'Storniert'
+            ];
+            $getStatusLabel = function($status) use ($statusLabels) {
+                return $statusLabels[$status] ?? $status;
+            };
+            $this->getStatusLabel = $getStatusLabel;
+            require __DIR__ . '/../../resources/views/emails/invoice.php';
+            $emailBody = ob_get_clean();
+
+            // E-Mail versenden
+            $mailConfig = require __DIR__ . '/../../config/mail.php';
+            $mailService = new MailService($mailConfig);
+            
+            $success = $mailService->send(
+                $customer['email'],
+                'Rechnung ' . $invoice['invoice_number'],
+                $emailBody,
+                [
+                    [
+                        'path' => $tempPdfPath,
+                        'name' => 'Rechnung_' . $invoice['invoice_number'] . '.pdf'
+                    ]
+                ]
+            );
+
+            // Temp-Datei löschen
+            unlink($tempPdfPath);
+
+            if ($success) {
+                // Status auf "sent" setzen, falls noch "draft"
+                if ($invoice['status'] === 'draft') {
+                    $this->db->update('bm_invoices', [
+                        'status' => 'sent',
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ], 'id = ?', [$invoiceId]);
+                }
+
+                $_SESSION['success'] = 'Rechnung wurde erfolgreich an ' . $customer['email'] . ' versendet';
+            } else {
+                $_SESSION['error'] = 'E-Mail konnte nicht versendet werden. Bitte prüfen Sie die E-Mail-Konfiguration.';
+            }
+
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Fehler beim E-Mail-Versand: ' . $e->getMessage();
+        }
+
+        return $response->withHeader('Location', '/invoices/' . $invoiceId)->withStatus(302);
+    }
+    
+    private function getStatusLabel(string $status): string
+    {
+        $labels = [
+            'draft' => 'Entwurf',
+            'sent' => 'Versendet',
+            'paid' => 'Bezahlt',
+            'overdue' => 'Überfällig',
+            'cancelled' => 'Storniert'
+        ];
+        return $labels[$status] ?? $status;
     }
 }

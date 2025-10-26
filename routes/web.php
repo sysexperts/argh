@@ -396,6 +396,15 @@ $app->group('/invoices', function (RouteCollectorProxy $group) use ($container) 
         );
         return $controller->exportPdf($request, $response, $args);
     });
+    
+    // E-Mail versenden
+    $group->post('/{id}/send-email', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new InvoiceController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->sendEmail($request, $response, $args);
+    });
 });
 
 // Time Tracking Routes
