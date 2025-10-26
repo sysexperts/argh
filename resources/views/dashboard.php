@@ -2,6 +2,23 @@
 // Dashboard Content (wird in Layout eingebettet)
 ob_start();
 ?>
+<!-- Error Message -->
+<?php if (isset($_SESSION['error'])): ?>
+    <div class="mb-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-500 dark:border-red-600 text-red-800 dark:text-red-200 px-6 py-4 rounded-lg shadow-lg">
+        <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined text-3xl">error</span>
+            <div class="flex-1">
+                <p class="font-semibold text-base mb-1">⚠️ Zugriff verweigert</p>
+                <p class="text-sm"><?= htmlspecialchars($_SESSION['error']) ?></p>
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" class="text-red-600 dark:text-red-400 hover:text-red-800">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+    </div>
+    <?php unset($_SESSION['error']); ?>
+<?php endif; ?>
+
 <!-- Mobile Header -->
 <div class="lg:hidden mb-4">
     <h1 class="text-2xl font-semibold text-text-light dark:text-text-dark">

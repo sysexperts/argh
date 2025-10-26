@@ -14,6 +14,23 @@ ob_start();
     </p>
 </div>
 
+<!-- Error Message -->
+<?php if (isset($_SESSION['error'])): ?>
+    <div class="mb-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-500 dark:border-red-600 text-red-800 dark:text-red-200 px-6 py-4 rounded-lg shadow-lg animate-pulse">
+        <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined text-3xl">error</span>
+            <div class="flex-1">
+                <p class="font-semibold text-base mb-1">⚠️ Zugriff verweigert</p>
+                <p class="text-sm"><?= htmlspecialchars($_SESSION['error']) ?></p>
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" class="text-red-600 dark:text-red-400 hover:text-red-800">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+    </div>
+    <?php unset($_SESSION['error']); ?>
+<?php endif; ?>
+
 <!-- Success Message -->
 <?php if (isset($_SESSION['success'])): ?>
     <div class="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 px-4 py-3 rounded-lg flex items-center justify-between">

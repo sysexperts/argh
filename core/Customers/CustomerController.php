@@ -13,6 +13,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use SysExperts\BusinessManager\Database\Database;
 use SysExperts\BusinessManager\Auth\SessionService;
+use SysExperts\BusinessManager\Auth\LicenseChecker;
 use SysExperts\BusinessManager\Navigation\NavigationService;
 
 class CustomerController
@@ -36,6 +37,13 @@ class CustomerController
         }
 
         $user = $this->session->getUser();
+        
+        // Lizenzprüfung
+        $licenseChecker = new LicenseChecker($this->db);
+        if (!$licenseChecker->hasLicense($user['id'], 'customers', $user['role'] ?? 'user')) {
+            $_SESSION['error'] = 'Sie haben keine Lizenz für die Kundenverwaltung. Bitte aktivieren Sie es im Marketplace.';
+            return $response->withHeader('Location', '/marketplace')->withStatus(302);
+        }
         
         $customers = $this->db->fetchAll("
             SELECT * FROM bm_customers

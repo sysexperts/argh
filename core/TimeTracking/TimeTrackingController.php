@@ -7,6 +7,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use SysExperts\BusinessManager\Auth\AuthService;
 use SysExperts\BusinessManager\Auth\SessionManager;
+use SysExperts\BusinessManager\Auth\LicenseChecker;
 use SysExperts\BusinessManager\Database\Database;
 
 class TimeTrackingController
@@ -29,6 +30,13 @@ class TimeTrackingController
         $currentUser = $this->sessionManager->getCurrentUser($this->authService);
         if (!$currentUser) {
             return $response->withHeader('Location', '/auth/login')->withStatus(302);
+        }
+        
+        // Lizenzprüfung
+        $licenseChecker = new LicenseChecker($this->db);
+        if (!$licenseChecker->hasLicense($currentUser->getId(), 'time-tracking', $currentUser->getRole())) {
+            $_SESSION['error'] = 'Sie haben keine Lizenz für die Zeiterfassung. Bitte aktivieren Sie es im Marketplace.';
+            return $response->withHeader('Location', '/marketplace')->withStatus(302);
         }
 
         $params = $request->getQueryParams();
