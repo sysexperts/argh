@@ -45,83 +45,79 @@ ob_start();
 </div>
 
 <!-- Module Grid -->
+<?php 
+// Sortiere Module: Aktive zuerst
+foreach ($grouped as $category => &$categoryModules) {
+    usort($categoryModules, function($a, $b) {
+        $aActive = $a['is_enabled'] == 1;
+        $bActive = $b['is_enabled'] == 1;
+        if ($aActive === $bActive) return 0;
+        return $aActive ? -1 : 1;
+    });
+}
+unset($categoryModules);
+?>
+
 <?php foreach ($grouped as $category => $categoryModules): ?>
-    <div class="mb-8">
-        <h3 class="text-xl font-semibold text-text-light dark:text-text-dark mb-4 flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary">category</span>
+    <div class="mb-6">
+        <h3 class="text-lg font-semibold text-text-light dark:text-text-dark mb-3 flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-xl">category</span>
             <?= htmlspecialchars($category) ?>
         </h3>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <?php foreach ($categoryModules as $module): ?>
                 <?php 
                 $isActive = $module['is_enabled'] == 1;
                 $hasLicense = $module['license_id'] !== null;
                 ?>
-                <div class="group bg-card-light dark:bg-card-dark rounded-lg shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-border-light dark:border-border-dark hover:border-primary">
+                <div class="group bg-card-light dark:bg-card-dark rounded-lg shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border <?= $isActive ? 'border-green-500 dark:border-green-600' : 'border-border-light dark:border-border-dark hover:border-primary' ?>">
                     <!-- Image/Icon Header -->
-                    <div class="h-32 bg-gradient-to-br from-primary to-teal-600 flex items-center justify-center">
-                        <span class="material-symbols-outlined text-6xl text-white opacity-80">
+                    <div class="h-20 bg-gradient-to-br from-primary to-teal-600 flex items-center justify-center relative">
+                        <span class="material-symbols-outlined text-4xl text-white opacity-80">
                             extension
                         </span>
+                        <?php if ($isActive): ?>
+                        <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-semibold">
+                            Aktiv
+                        </div>
+                        <?php endif; ?>
                     </div>
 
                     <!-- Content -->
-                    <div class="p-6">
+                    <div class="p-4">
                         <!-- Title & Price -->
-                        <div class="mb-4">
-                            <h4 class="font-bold text-lg text-text-light dark:text-text-dark mb-2">
+                        <div class="mb-3">
+                            <h4 class="font-bold text-base text-text-light dark:text-text-dark mb-1">
                                 <?= htmlspecialchars($module['name']) ?>
                             </h4>
                             <div class="flex items-center justify-between">
-                                <span class="text-2xl font-bold text-primary">
+                                <span class="text-lg font-bold text-primary">
                                     €<?= number_format($module['price_per_user'], 2, ',', '.') ?>
                                 </span>
                                 <span class="text-xs text-text-muted-light dark:text-text-muted-dark">
-                                    pro Monat
+                                    /Monat
                                 </span>
                             </div>
                         </div>
 
                         <!-- Description -->
-                        <p class="text-sm text-text-muted-light dark:text-text-muted-dark mb-6 line-clamp-3">
+                        <p class="text-xs text-text-muted-light dark:text-text-muted-dark mb-3 line-clamp-2">
                             <?= htmlspecialchars($module['description'] ?? 'Professionelles Modul für Ihr Business') ?>
                         </p>
 
-                        <!-- Features (Mock) -->
-                        <ul class="text-xs text-text-muted-light dark:text-text-muted-dark space-y-2 mb-6">
-                            <li class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-sm text-green-500">check_circle</span>
-                                Vollständig integriert
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-sm text-green-500">check_circle</span>
-                                Regelmäßige Updates
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-sm text-green-500">check_circle</span>
-                                Support inklusive
-                            </li>
-                        </ul>
-
                         <!-- Action Button -->
                         <?php if ($isActive): ?>
-                            <div class="space-y-2">
-                                <div class="flex items-center justify-center gap-2 py-3 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg font-semibold">
-                                    <span class="material-symbols-outlined">check_circle</span>
-                                    Aktiv
-                                </div>
-                                <form method="POST" action="/modules/<?= $module['id'] ?>/deactivate">
-                                    <button type="submit" class="w-full py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                                        Deaktivieren
-                                    </button>
-                                </form>
-                            </div>
+                            <form method="POST" action="/modules/<?= $module['id'] ?>/deactivate">
+                                <button type="submit" class="w-full py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-red-200 dark:border-red-800">
+                                    Deaktivieren
+                                </button>
+                            </form>
                         <?php else: ?>
                             <form method="POST" action="/modules/<?= $module['id'] ?>/activate">
-                                <button type="submit" class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-teal-600 hover:from-primary/90 hover:to-teal-600/90 text-white py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all">
-                                    <span class="material-symbols-outlined">add_shopping_cart</span>
-                                    Jetzt aktivieren
+                                <button type="submit" class="w-full flex items-center justify-center gap-1 bg-gradient-to-r from-primary to-teal-600 hover:from-primary/90 hover:to-teal-600/90 text-white py-2 rounded-lg text-sm font-semibold shadow-sm hover:shadow-md transition-all">
+                                    <span class="material-symbols-outlined text-base">add</span>
+                                    Aktivieren
                                 </button>
                             </form>
                         <?php endif; ?>

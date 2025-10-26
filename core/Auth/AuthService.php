@@ -75,7 +75,7 @@ class AuthService
             $passwordHash,
             $data['first_name'],
             $data['last_name'],
-            $data['role'] ?? 'user',
+            'user', // Neue Registrierungen sind immer normale User, nie Admin
             $verificationToken,
             $verificationExpires
         ]);

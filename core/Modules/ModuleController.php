@@ -60,7 +60,7 @@ class ModuleController
 
         // Navigation
         $navService = new NavigationService($this->db);
-        $navigation = $navService->getNavigation($user['id'], '/modules');
+        $navigation = $navService->getNavigation($user['id'], '/modules', $user['role']);
 
         // Render View
         ob_start();
@@ -106,7 +106,7 @@ class ModuleController
 
         // Navigation
         $navService = new NavigationService($this->db);
-        $navigation = $navService->getNavigation($user['id'], '/marketplace');
+        $navigation = $navService->getNavigation($user['id'], '/marketplace', $user['role']);
 
         // Render View
         ob_start();

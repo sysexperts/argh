@@ -22,84 +22,126 @@ class NavigationService
     /**
      * Hole Navigation-Items für aktuellen User
      */
-    public function getNavigation(?int $userId, string $currentPath = '/'): array
+    public function getNavigation(?int $userId, string $currentPath = '/', ?string $userRole = null): array
     {
         // Module laden (fallback, falls Tabellen noch nicht existieren)
         try {
-            if (!$userId) {
-                $modules = $this->db->fetchAll("
-                    SELECT * FROM bm_modules
-                    WHERE is_core = 1
-                    ORDER BY display_order ASC, name ASC
-                ");
-            } else {
-                $modules = $this->db->fetchAll("
-                    SELECT m.*, ml.is_enabled
-                    FROM bm_modules m
-                    LEFT JOIN bm_module_licenses ml ON m.id = ml.module_id AND ml.user_id = ?
-                    WHERE m.is_core = 1 OR ml.is_enabled = 1
-                    ORDER BY m.display_order ASC, m.name ASC
-                ", [$userId]);
-            }
+            $stmt = $this->db->getConnection()->prepare("
+                SELECT * FROM bm_modules WHERE is_active = 1 ORDER BY sort_order ASC
+            ");
+            $stmt->execute();
+            $modules = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
             // Fallback: keine dynamischen Module
             $modules = [];
         }
 
-        // Gruppiere Module
+        // Prüfe ob User Admin ist
+        $isAdmin = ($userRole === 'admin');
+
+        // Basis-Navigation für alle User
+        $baseItems = [
+            [
+                'label' => 'Dashboard',
+                'url' => '/dashboard',
+                'icon' => '📊',
+                'active' => $currentPath === '/dashboard',
+            ],
+            [
+                'label' => 'Marketplace',
+                'url' => '/marketplace',
+                'icon' => '🛒',
+                'active' => str_starts_with($currentPath, '/marketplace'),
+            ],
+            [
+                'label' => 'Einstellungen',
+                'url' => '/settings',
+                'icon' => '⚙️',
+                'active' => str_starts_with($currentPath, '/settings'),
+            ],
+        ];
+
+        // Admin-spezifische Navigation
+        $adminItems = [
+            [
+                'label' => 'Benutzerverwaltung',
+                'url' => '/users',
+                'icon' => '👥',
+                'active' => str_starts_with($currentPath, '/users'),
+            ],
+            [
+                'label' => 'Meine Module',
+                'url' => '/modules',
+                'icon' => '📦',
+                'active' => str_starts_with($currentPath, '/modules'),
+            ],
+        ];
+
+        // Lizenzierte Module aus DB laden
+        $licensedModules = [];
+        if ($userId) {
+            try {
+                $stmt = $this->db->getConnection()->prepare("
+                    SELECT m.code, m.name
+                    FROM bm_modules m
+                    INNER JOIN bm_module_licenses ml ON m.id = ml.module_id
+                    WHERE ml.user_id = ? AND ml.is_enabled = 1 AND m.is_active = 1
+                    ORDER BY m.display_order, m.name
+                ");
+                $stmt->execute([$userId]);
+                $licenses = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+                
+                foreach ($licenses as $license) {
+                    $url = $this->getModuleUrlByCode($license['code']);
+                    $licensedModules[] = [
+                        'label' => $license['name'],
+                        'url' => $url,
+                        'icon' => $this->getModuleIcon($license['code']),
+                        'active' => str_starts_with($currentPath, $url),
+                    ];
+                }
+            } catch (\PDOException $e) {
+                // Fallback: keine lizenzierten Module
+            }
+        }
+
+        // Navigation zusammenbauen
+        $items = $baseItems;
+        
+        if ($isAdmin) {
+            // Admin sieht alles (Admin-Items + alle verfügbaren Module)
+            $adminModules = [
+                [
+                    'label' => 'Kunden',
+                    'url' => '/customers',
+                    'icon' => '👥',
+                    'active' => str_starts_with($currentPath, '/customers'),
+                ],
+                [
+                    'label' => 'Rechnungen',
+                    'url' => '/invoices',
+                    'icon' => '🧾',
+                    'active' => str_starts_with($currentPath, '/invoices'),
+                ],
+                [
+                    'label' => 'Zeiterfassung',
+                    'url' => '/time-tracking',
+                    'icon' => '⏱️',
+                    'active' => str_starts_with($currentPath, '/time-tracking'),
+                ],
+            ];
+            $items = array_merge($items, $adminItems, $adminModules);
+        } else {
+            // Normale User sehen nur ihre lizenzierten Module
+            if (!empty($licensedModules)) {
+                $items = array_merge($items, $licensedModules);
+            }
+        }
+
         $navigation = [
             [
                 'label' => 'Hauptmenü',
-                'items' => [
-                    [
-                        'label' => 'Dashboard',
-                        'url' => '/dashboard',
-                        'icon' => '📊',
-                        'active' => $currentPath === '/dashboard',
-                    ],
-                    [
-                        'label' => 'Benutzerverwaltung',
-                        'url' => '/users',
-                        'icon' => '👥',
-                        'active' => str_starts_with($currentPath, '/users'),
-                    ],
-                    [
-                        'label' => 'Meine Module',
-                        'url' => '/modules',
-                        'icon' => '📦',
-                        'active' => str_starts_with($currentPath, '/modules'),
-                    ],
-                    [
-                        'label' => 'Marketplace',
-                        'url' => '/marketplace',
-                        'icon' => '🛒',
-                        'active' => str_starts_with($currentPath, '/marketplace'),
-                    ],
-                    [
-                        'label' => 'Kunden',
-                        'url' => '/customers',
-                        'icon' => '👥',
-                        'active' => str_starts_with($currentPath, '/customers'),
-                    ],
-                    [
-                        'label' => 'Rechnungen',
-                        'url' => '/invoices',
-                        'icon' => '🧾',
-                        'active' => str_starts_with($currentPath, '/invoices'),
-                    ],
-                    [
-                        'label' => 'Zeiterfassung',
-                        'url' => '/time-tracking',
-                        'icon' => '⏱️',
-                        'active' => str_starts_with($currentPath, '/time-tracking'),
-                    ],
-                    [
-                        'label' => 'Einstellungen',
-                        'url' => '/settings',
-                        'icon' => '⚙️',
-                        'active' => str_starts_with($currentPath, '/settings'),
-                    ],
-                ],
+                'items' => $items,
             ],
         ];
 
@@ -172,6 +214,24 @@ class NavigationService
     private function getModuleUrl(string $slug): string
     {
         return '/modules/' . $slug;
+    }
+
+    /**
+     * Hole URL für Modul anhand Code
+     */
+    private function getModuleUrlByCode(string $code): string
+    {
+        // Map module codes to actual URLs
+        $urlMap = [
+            'time-tracking' => '/time-tracking',
+            'invoices' => '/invoices',
+            'customers' => '/customers',
+            'projects' => '/projects',
+            'documents' => '/documents',
+            'calendar' => '/calendar',
+        ];
+        
+        return $urlMap[$code] ?? '/modules/' . $code;
     }
 
     /**

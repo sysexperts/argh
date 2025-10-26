@@ -60,7 +60,7 @@ $app->get('/dashboard', function (Request $request, Response $response) use ($co
 
     // Für Layout
     $user = $currentUser->toPublicArray();
-    $navigation = $navService->getNavigation($currentUser->getId(), '/dashboard');
+    $navigation = $navService->getNavigation($currentUser->getId(), '/dashboard', $currentUser->getRole());
     
     ob_start();
     require __DIR__ . '/../resources/views/dashboard.php';
@@ -184,6 +184,33 @@ $app->group('/users', function (RouteCollectorProxy $group) use ($container) {
             $container->get(SessionService::class)
         );
         return $controller->activate($request, $response, $args);
+    });
+    
+    // Lizenzen verwalten
+    $group->get('/{id}/licenses', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new UserController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->manageLicenses($request, $response, $args);
+    });
+
+    // Lizenz erteilen
+    $group->post('/{user_id}/licenses/{module_id}/grant', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new UserController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->grantLicense($request, $response, $args);
+    });
+
+    // Lizenz entziehen
+    $group->post('/{user_id}/licenses/{module_id}/revoke', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new UserController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->revokeLicense($request, $response, $args);
     });
 });
 

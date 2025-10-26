@@ -46,7 +46,7 @@ class TimeTrackingController
         // Für Layout
         $user = $currentUser->toPublicArray();
         $navService = new \SysExperts\BusinessManager\Navigation\NavigationService($this->db);
-        $navigation = $navService->getNavigation($currentUser->getId(), '/time-tracking');
+        $navigation = $navService->getNavigation($currentUser->getId(), '/time-tracking', $currentUser->getRole());
 
         ob_start();
         require __DIR__ . '/../../resources/views/time_tracking/index.php';
@@ -160,7 +160,7 @@ class TimeTrackingController
             // Für Layout
             $user = $currentUser->toPublicArray();
             $navService = new \SysExperts\BusinessManager\Navigation\NavigationService($this->db);
-            $navigation = $navService->getNavigation($currentUser->getId(), '/time-tracking');
+            $navigation = $navService->getNavigation($currentUser->getId(), '/time-tracking', $currentUser->getRole());
 
             ob_start();
             require __DIR__ . '/../../resources/views/time_tracking/show.php';
@@ -252,7 +252,7 @@ class TimeTrackingController
         // Für Layout
         $user = $currentUser->toPublicArray();
         $navService = new \SysExperts\BusinessManager\Navigation\NavigationService($this->db);
-        $navigation = $navService->getNavigation($currentUser->getId(), '/time-tracking');
+        $navigation = $navService->getNavigation($currentUser->getId(), '/time-tracking', $currentUser->getRole());
 
         ob_start();
         require __DIR__ . '/../../resources/views/time_tracking/weekly_summary.php';

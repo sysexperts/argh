@@ -80,7 +80,10 @@ ob_start();
                         Status
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-text-muted-light dark:text-text-muted-dark uppercase tracking-wider">
-                        Letzter Login
+                        Erstellt am
+                    </th>
+                    <th class="px-6 py-3 text-center text-xs font-medium text-text-muted-light dark:text-text-muted-dark uppercase tracking-wider">
+                        Lizenzen
                     </th>
                     <th class="px-6 py-3 text-right text-xs font-medium text-text-muted-light dark:text-text-muted-dark uppercase tracking-wider">
                         Aktionen
@@ -131,10 +134,18 @@ ob_start();
                             <?php endif; ?>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-text-muted-light dark:text-text-muted-dark">
-                            <?= $u['last_login_at'] ? date('d.m.Y H:i', strtotime($u['last_login_at'])) : 'Nie' ?>
+                            <?= date('d.m.Y', strtotime($u['created_at'])) ?>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                <?= $u['active_licenses'] ?? 0 ?> Lizenzen
+                            </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div class="flex items-center justify-end gap-2">
+                                <a href="/users/<?= $u['id'] ?>/licenses" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors" title="Lizenzen verwalten">
+                                    <span class="material-symbols-outlined">key</span>
+                                </a>
                                 <button @click="editUser(<?= htmlspecialchars(json_encode($u)) ?>)" class="text-primary hover:text-primary/80 transition-colors" title="Bearbeiten">
                                     <span class="material-symbols-outlined">edit</span>
                                 </button>
