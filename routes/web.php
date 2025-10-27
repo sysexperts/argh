@@ -674,6 +674,27 @@ $app->group('/time-tracking', function (RouteCollectorProxy $group) use ($contai
     });
 });
 
+// Audit-Log Routes
+$app->group('/audit-logs', function (RouteCollectorProxy $group) use ($container) {
+    // Übersicht
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\AuditLog\AuditLogController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Export
+    $group->get('/export', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\AuditLog\AuditLogController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->export($request, $response);
+    });
+});
+
 // Update Routes
 $app->group('/updates', function (RouteCollectorProxy $group) use ($container) {
     // Übersicht

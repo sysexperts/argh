@@ -7,6 +7,10 @@
 
 declare(strict_types=1);
 
+// Error Reporting für Debugging
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+
 use Dotenv\Dotenv;
 use Slim\Factory\AppFactory;
 use DI\Container;
@@ -55,11 +59,11 @@ $container->set(SessionService::class, function() {
 AppFactory::setContainer($container);
 $app = AppFactory::create();
 
-// Error Handling
+// Error Handling - IMMER im Debug-Modus für Entwicklung
 $app->addErrorMiddleware(
-    $config['app']['debug'],
-    true,
-    true
+    true,  // displayErrorDetails
+    true,  // logErrors
+    true   // logErrorDetails
 );
 
 // Lade Routes
