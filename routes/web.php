@@ -10,84 +10,73 @@ declare(strict_types=1);
 use Slim\Routing\RouteCollectorProxy;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use SysExperts\BusinessManager\Auth\AuthController;
+use SysExperts\BusinessManager\Auth\AuthMiddleware;
+use SysExperts\BusinessManager\Auth\LicenseMiddleware;
+use SysExperts\BusinessManager\Auth\SessionService;
+use SysExperts\BusinessManager\Auth\SessionManager;
+use SysExperts\BusinessManager\Auth\AuthService as CoreAuthService;
+use SysExperts\BusinessManager\Database\Database;
+use SysExperts\BusinessManager\Navigation\NavigationService;
+use SysExperts\BusinessManager\Users\UserController;
+use SysExperts\BusinessManager\Modules\ModuleController;
+use SysExperts\BusinessManager\Invoices\InvoiceController;
+use SysExperts\BusinessManager\Customers\CustomerController;
+use SysExperts\BusinessManager\Settings\SettingsController;
 
-// Home / Dashboard
-$app->get('/', function (Request $request, Response $response) {
-    $response->getBody()->write('
-        <!DOCTYPE html>
-        <html lang="de">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Business Manager - sys-experts.de</title>
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    min-height: 100vh;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                }
-                .container {
-                    text-align: center;
-                    padding: 2rem;
-                }
-                h1 { font-size: 3rem; margin-bottom: 1rem; }
-                p { font-size: 1.2rem; opacity: 0.9; margin-bottom: 2rem; }
-                .status {
-                    background: rgba(255,255,255,0.1);
-                    backdrop-filter: blur(10px);
-                    border-radius: 12px;
-                    padding: 2rem;
-                    margin-top: 2rem;
-                }
-                .status-item {
-                    display: flex;
-                    justify-content: space-between;
-                    padding: 0.5rem 0;
-                    border-bottom: 1px solid rgba(255,255,255,0.1);
-                }
-                .status-item:last-child { border-bottom: none; }
-                .badge {
-                    background: #10b981;
-                    padding: 0.25rem 0.75rem;
-                    border-radius: 6px;
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🚀 Business Manager</h1>
-                <p>Modulare mandantenfähige Business-Software</p>
-                <p style="font-size: 1rem; opacity: 0.7;">von sys-experts.de</p>
-                
-                <div class="status">
-                    <div class="status-item">
-                        <span>System Status</span>
-                        <span class="badge">✓ Online</span>
-                    </div>
-                    <div class="status-item">
-                        <span>PHP Version</span>
-                        <span class="badge">' . PHP_VERSION . '</span>
-                    </div>
-                    <div class="status-item">
-                        <span>Framework</span>
-                        <span class="badge">Slim 4</span>
-                    </div>
-                    <div class="status-item">
-                        <span>Datenbank</span>
-                        <span class="badge">SQLite</span>
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
-    ');
+// Home - Redirect zu Login oder Dashboard
+$app->get('/', function (Request $request, Response $response) use ($container) {
+    // Nutze neuen SessionManager + AuthService
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if ($currentUser) {
+        return $response->withHeader('Location', '/dashboard')->withStatus(302);
+    }
+
+    return $response->withHeader('Location', '/auth/login')->withStatus(302);
+});
+
+// Dashboard
+$app->get('/dashboard', function (Request $request, Response $response) use ($container) {
+    // Auth-Check mit neuem SessionManager
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser) {
+        return $response->withHeader('Location', '/auth/login')->withStatus(302);
+    }
+
+    $db = $container->get(Database::class);
+    $navService = new NavigationService($db);
+
+    // Hole Tenant-ID vom aktuellen User
+    $tenantId = $currentUser->getTenantId();
+    
+    // Hole echte Stats aus der Datenbank (MIT TENANT-ISOLATION!)
+    $stats = [
+        'total_users' => $db->fetchOne('SELECT COUNT(*) as count FROM users WHERE tenant_id = ? AND is_active = 1', [$tenantId])['count'] ?? 0,
+        'total_customers' => $db->fetchOne('SELECT COUNT(*) as count FROM bm_customers WHERE tenant_id = ? AND is_active = 1', [$tenantId])['count'] ?? 0,
+        'total_invoices' => $db->fetchOne('SELECT COUNT(*) as count FROM bm_invoices WHERE tenant_id = ?', [$tenantId])['count'] ?? 0,
+        'pending_invoices' => $db->fetchOne('SELECT COUNT(*) as count FROM bm_invoices WHERE tenant_id = ? AND status IN ("draft", "sent")', [$tenantId])['count'] ?? 0,
+        'total_revenue' => $db->fetchOne('SELECT SUM(total) as sum FROM bm_invoices WHERE tenant_id = ? AND status = "paid"', [$tenantId])['sum'] ?? 0,
+        'pending_amount' => $db->fetchOne('SELECT SUM(total) as sum FROM bm_invoices WHERE tenant_id = ? AND status IN ("sent", "overdue")', [$tenantId])['sum'] ?? 0,
+        'active_modules' => $db->fetchOne('SELECT COUNT(DISTINCT module_id) as count FROM bm_module_licenses WHERE tenant_id = ? AND user_id = ? AND is_enabled = 1', [$tenantId, $currentUser->getId()])['count'] ?? 0,
+    ];
+
+    // Für Layout
+    $user = $currentUser->toPublicArray();
+    $navigation = $navService->getNavigation($currentUser->getId(), '/dashboard', $currentUser->getRole());
+    
+    ob_start();
+    require __DIR__ . '/../resources/views/dashboard.php';
+    $html = ob_get_clean();
+    
+    $response->getBody()->write($html);
     return $response;
 });
 
@@ -103,20 +92,59 @@ $app->get('/api/health', function (Request $request, Response $response) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-// Auth Routes (später)
-$app->group('/auth', function (RouteCollectorProxy $group) {
-    $group->get('/login', function (Request $request, Response $response) {
-        $response->getBody()->write('Login Page - Coming Soon');
-        return $response;
+// Auth Routes
+$app->group('/auth', function (RouteCollectorProxy $group) use ($container) {
+    // Login anzeigen
+    $group->get('/login', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->showLogin($request, $response);
     });
     
-    $group->post('/login', function (Request $request, Response $response) {
-        $response->getBody()->write('Login Handler - Coming Soon');
-        return $response;
+    // Login verarbeiten
+    $group->post('/login', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->login($request, $response);
     });
     
-    $group->get('/logout', function (Request $request, Response $response) {
-        $response->getBody()->write('Logout Handler - Coming Soon');
-        return $response;
+    // Logout
+    $group->get('/logout', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->logout($request, $response);
+    });
+    
+    // Registrierung anzeigen
+    $group->get('/register', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->showRegister($request, $response);
+    });
+    
+    // Registrierung verarbeiten
+    $group->post('/register', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->register($request, $response);
+    });
+    
+    // E-Mail verifizieren
+    $group->get('/verify-email', function (Request $request, Response $response) use ($container) {
+        $db = $container->get(Database::class)->getConnection();
+        $authService = new \SysExperts\BusinessManager\Auth\AuthService($db);
+        $sessionManager = new \SysExperts\BusinessManager\Auth\SessionManager($db);
+        $controller = new AuthController($authService, $sessionManager);
+        return $controller->verifyEmail($request, $response);
     });
 });

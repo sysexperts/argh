@@ -11,10 +11,16 @@ use Dotenv\Dotenv;
 use Slim\Factory\AppFactory;
 use DI\Container;
 use SysExperts\BusinessManager\Database\Database;
+use SysExperts\BusinessManager\Auth\SessionService;
 
 // Lade Umgebungsvariablen
 $dotenv = Dotenv::createImmutable(__DIR__ . '/..');
 $dotenv->safeLoad();
+
+// Starte Session frühzeitig
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Lade Konfiguration
 $config = [
@@ -40,15 +46,20 @@ $container->set(Database::class, function() use ($config) {
     return new Database($config['database']);
 });
 
+// Registriere SessionService im Container
+$container->set(SessionService::class, function() {
+    return new SessionService();
+});
+
 // Erstelle Slim App mit Container
 AppFactory::setContainer($container);
 $app = AppFactory::create();
 
-// Error Handling
+// Error Handling (Debug aktiviert)
 $app->addErrorMiddleware(
-    $config['app']['debug'],
-    true,
-    true
+    true,  // Display Error Details
+    true,  // Log Errors
+    true   // Log Error Details
 );
 
 // Lade Routes

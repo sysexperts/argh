@@ -62,7 +62,7 @@
                 <!-- Logo -->
                 <div class="flex items-center justify-between h-20 px-6 border-b border-border-light dark:border-border-dark">
                     <a class="flex items-center gap-2" href="/dashboard">
-                        <img src="/assets/images/sys-expertslogo.png" alt="Logo" class="h-8 w-auto" onerror="this.style.display='none'"/>
+                        <img src="/assets/images/sys-expertslogo.png" alt="sys-experts Logo" class="h-8 w-auto" onerror="this.style.display='none'"/>
                     </a>
                     <button @click="sidebarOpen = false" class="lg:hidden text-text-muted-light dark:text-text-muted-dark">
                         <span class="material-symbols-outlined">close</span>
