@@ -164,8 +164,11 @@ if ($step == 4 && isset($_SESSION['db_migrated'])) {
             }
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             
+            // Bestimme Datetime-Funktion basierend auf DB-Typ
+            $now = $dbConfig['type'] === 'mysql' ? 'NOW()' : "datetime('now')";
+            
             // Erstelle Tenant
-            $stmt = $pdo->prepare("INSERT INTO tenants (name, subdomain, is_active, created_at) VALUES (?, ?, 1, datetime('now'))");
+            $stmt = $pdo->prepare("INSERT INTO tenants (name, subdomain, is_active, created_at) VALUES (?, ?, 1, $now)");
             $stmt->execute([$_POST['company_name'], 'main']);
             $tenantId = $pdo->lastInsertId();
             
@@ -173,7 +176,7 @@ if ($step == 4 && isset($_SESSION['db_migrated'])) {
             $passwordHash = password_hash($_POST['password'], PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("
                 INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active, email_verified_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 'admin', 1, datetime('now'), datetime('now'), datetime('now'))
+                VALUES (?, ?, ?, ?, ?, 'admin', 1, $now, $now, $now)
             ");
             $stmt->execute([
                 $tenantId,
