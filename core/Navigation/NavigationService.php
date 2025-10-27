@@ -79,7 +79,7 @@ class NavigationService
         // Icon-Mapping für Module (Material Icons)
         $iconMap = [
             'time-tracking' => 'schedule',
-            'invoices' => 'receipt',
+            'invoices' => 'receipt_long',
             'customers' => 'business',
             'calendar' => 'calendar_month',
             'helpdesk' => 'support_agent',

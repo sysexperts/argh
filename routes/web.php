@@ -238,25 +238,321 @@ $app->get('/time-tracking', function (Request $request, Response $response) use 
     
     // Hole aktiven Eintrag
     $activeEntry = null;
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM time_entries WHERE user_id = ? AND end_time IS NULL ORDER BY date DESC, start_time DESC LIMIT 1");
+        $stmt->execute([$userId]);
+        $activeEntry = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($activeEntry) {
+            // Kombiniere date und start_time für Kompatibilität
+            $activeEntry['start_time'] = $activeEntry['date'] . ' ' . $activeEntry['start_time'];
+        }
+    } catch (\Exception $e) {
+        // Tabelle existiert möglicherweise nicht
+    }
     
     // Datum-Filter
     $startDate = $_GET['start_date'] ?? date('Y-m-01');
     $endDate = $_GET['end_date'] ?? date('Y-m-t');
     
-    // Hole Zeiteinträge (leer für jetzt, da Tabelle möglicherweise nicht existiert)
+    // Hole Zeiteinträge
     $entries = [];
+    try {
+        $stmt = $pdo->prepare("
+            SELECT * FROM time_entries 
+            WHERE user_id = ? 
+            AND date BETWEEN ? AND ?
+            ORDER BY date DESC, start_time DESC
+        ");
+        $stmt->execute([$userId, $startDate, $endDate]);
+        $rawEntries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Kombiniere date und times für Kompatibilität mit View
+        foreach ($rawEntries as $entry) {
+            // Nur kombinieren wenn start_time noch kein Datum enthält
+            if (!str_contains($entry['start_time'], ' ')) {
+                $entry['start_time'] = $entry['date'] . ' ' . $entry['start_time'];
+            }
+            if ($entry['end_time'] && !str_contains($entry['end_time'], ' ')) {
+                $entry['end_time'] = $entry['date'] . ' ' . $entry['end_time'];
+            }
+            $entries[] = $entry;
+        }
+    } catch (\Exception $e) {
+        // Tabelle existiert möglicherweise nicht
+    }
     
-    ob_start();
     require __DIR__ . '/../resources/views/time_tracking/index.php';
-    $html = ob_get_clean();
-    
-    $response->getBody()->write($html);
     return $response;
+});
+
+// Time Tracking API Endpoints
+$app->post('/api/time-tracking/start', function (Request $request, Response $response) use ($container) {
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => 'Nicht angemeldet']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+    }
+
+    $data = $request->getParsedBody();
+    $userId = $currentUser->getId();
+    $tenantId = $currentUser->getTenantId();
+    
+    try {
+        $now = new \DateTime();
+        $stmt = $pdo->prepare("
+            INSERT INTO time_entries (user_id, tenant_id, date, start_time, status, notes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'active', ?, datetime('now'), datetime('now'))
+        ");
+        $stmt->execute([
+            $userId,
+            $tenantId,
+            $now->format('Y-m-d'),
+            $now->format('H:i:s'),
+            $data['description'] ?? ''
+        ]);
+        
+        $response->getBody()->write(json_encode(['success' => true, 'message' => 'Zeiterfassung gestartet']));
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (\Exception $e) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+});
+
+$app->post('/api/time-tracking/stop', function (Request $request, Response $response) use ($container) {
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => 'Nicht angemeldet']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+    }
+
+    $userId = $currentUser->getId();
+    
+    try {
+        $now = new \DateTime();
+        $stmt = $pdo->prepare("
+            UPDATE time_entries 
+            SET end_time = ?, status = 'completed', updated_at = datetime('now')
+            WHERE user_id = ? AND end_time IS NULL
+        ");
+        $stmt->execute([$now->format('H:i:s'), $userId]);
+        
+        $response->getBody()->write(json_encode(['success' => true, 'message' => 'Zeiterfassung beendet']));
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (\Exception $e) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+});
+
+$app->post('/api/time-tracking/manual', function (Request $request, Response $response) use ($container) {
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => 'Nicht angemeldet']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+    }
+
+    $data = $request->getParsedBody();
+    $userId = $currentUser->getId();
+    $tenantId = $currentUser->getTenantId();
+    
+    try {
+        // Validierung: Nicht in der Zukunft
+        $entryDate = new \DateTime($data['start_time']);
+        $now = new \DateTime();
+        
+        if ($entryDate > $now) {
+            throw new \Exception('Zeiteinträge können nicht in der Zukunft liegen.');
+        }
+        
+        // Parse times
+        $startDateTime = new \DateTime($data['start_time']);
+        $endDateTime = new \DateTime($data['end_time']);
+        
+        if ($endDateTime <= $startDateTime) {
+            throw new \Exception('Endzeit muss nach Startzeit liegen.');
+        }
+        
+        $stmt = $pdo->prepare("
+            INSERT INTO time_entries (user_id, tenant_id, date, start_time, end_time, status, notes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'completed', ?, datetime('now'), datetime('now'))
+        ");
+        $stmt->execute([
+            $userId,
+            $tenantId,
+            $startDateTime->format('Y-m-d'),
+            $startDateTime->format('H:i:s'),
+            $endDateTime->format('H:i:s'),
+            $data['description'] ?? ''
+        ]);
+        
+        $response->getBody()->write(json_encode(['success' => true, 'message' => 'Zeiteintrag erstellt']));
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (\Exception $e) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+});
+
+$app->delete('/api/time-tracking/{id}', function (Request $request, Response $response, array $args) use ($container) {
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => 'Nicht angemeldet']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+    }
+
+    $entryId = $args['id'];
+    $userId = $currentUser->getId();
+    
+    try {
+        $stmt = $pdo->prepare("DELETE FROM time_entries WHERE id = ? AND user_id = ?");
+        $stmt->execute([$entryId, $userId]);
+        
+        $response->getBody()->write(json_encode(['success' => true, 'message' => 'Eintrag gelöscht']));
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (\Exception $e) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
 });
 
 // Settings (Einstellungen)
 $app->get('/settings', function (Request $request, Response $response) use ($container) {
     return $response->withHeader('Location', '/dashboard')->withStatus(302);
+});
+
+// User API Endpoints
+$app->post('/api/users', function (Request $request, Response $response) use ($container) {
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser || $currentUser->getRole() !== 'admin') {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => 'Keine Berechtigung']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+    }
+
+    $data = $request->getParsedBody();
+    $tenantId = $currentUser->getTenantId();
+    
+    try {
+        // Prüfe ob Email bereits existiert
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? AND tenant_id = ?");
+        $stmt->execute([$data['email'], $tenantId]);
+        if ($stmt->fetch()) {
+            throw new \Exception('Diese E-Mail-Adresse wird bereits verwendet.');
+        }
+        
+        // Erstelle Benutzer
+        $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+        $stmt = $pdo->prepare("
+            INSERT INTO users (
+                tenant_id, email, password_hash, first_name, last_name, 
+                role, is_active, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
+        ");
+        $stmt->execute([
+            $tenantId,
+            $data['email'],
+            $hashedPassword,
+            $data['first_name'],
+            $data['last_name'],
+            $data['role'] ?? 'user'
+        ]);
+        
+        $response->getBody()->write(json_encode(['success' => true, 'message' => 'Benutzer erfolgreich erstellt']));
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (\Exception $e) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+});
+
+$app->put('/api/users/{id}', function (Request $request, Response $response, array $args) use ($container) {
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser || $currentUser->getRole() !== 'admin') {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => 'Keine Berechtigung']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+    }
+
+    $data = $request->getParsedBody();
+    $userId = $args['id'];
+    $tenantId = $currentUser->getTenantId();
+    
+    try {
+        $stmt = $pdo->prepare("
+            UPDATE users 
+            SET first_name = ?, last_name = ?, email = ?, role = ?, is_active = ?, updated_at = datetime('now')
+            WHERE id = ? AND tenant_id = ?
+        ");
+        $stmt->execute([
+            $data['first_name'],
+            $data['last_name'],
+            $data['email'],
+            $data['role'],
+            $data['is_active'] ? 1 : 0,
+            $userId,
+            $tenantId
+        ]);
+        
+        $response->getBody()->write(json_encode(['success' => true, 'message' => 'Benutzer erfolgreich aktualisiert']));
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (\Exception $e) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+});
+
+$app->delete('/api/users/{id}', function (Request $request, Response $response, array $args) use ($container) {
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser || $currentUser->getRole() !== 'admin') {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => 'Keine Berechtigung']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+    }
+
+    $userId = $args['id'];
+    $tenantId = $currentUser->getTenantId();
+    
+    try {
+        // Verhindere Selbst-Löschung
+        if ($userId == $currentUser->getId()) {
+            throw new \Exception('Sie können sich nicht selbst löschen.');
+        }
+        
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ? AND tenant_id = ?");
+        $stmt->execute([$userId, $tenantId]);
+        
+        $response->getBody()->write(json_encode(['success' => true, 'message' => 'Benutzer erfolgreich gelöscht']));
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (\Exception $e) {
+        $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
 });
 
 // Audit Logs
@@ -288,8 +584,44 @@ $app->get('/audit-logs', function (Request $request, Response $response) use ($c
     return $response;
 });
 
+// Invoices (Rechnungen)
+$app->get('/invoices', function (Request $request, Response $response) use ($container) {
+    // Auth-Check
+    $pdo = $container->get(Database::class)->getConnection();
+    $authService = new CoreAuthService($pdo);
+    $sessionManager = new SessionManager($pdo);
+    $currentUser = $sessionManager->getCurrentUser($authService);
+
+    if (!$currentUser) {
+        return $response->withHeader('Location', '/auth/login')->withStatus(302);
+    }
+
+    $db = $container->get(Database::class);
+    $navService = new NavigationService($db);
+    
+    $user = $currentUser->toPublicArray();
+    $navigation = $navService->getNavigation($currentUser->getId(), '/invoices', $currentUser->getRole());
+    
+    // Hole Rechnungen
+    $tenantId = $currentUser->getTenantId();
+    $invoices = [];
+    
+    try {
+        $invoices = $pdo->query("
+            SELECT * FROM bm_invoices 
+            WHERE tenant_id = {$tenantId}
+            ORDER BY created_at DESC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Exception $e) {
+        // Tabelle existiert möglicherweise nicht
+    }
+    
+    require __DIR__ . '/../resources/views/invoices/index.php';
+    return $response;
+});
+
 // Catch-all für Module die noch nicht implementiert sind
-$moduleRoutes = ['projects', 'tasks', 'documents', 'invoices', 'calendar', 'helpdesk'];
+$moduleRoutes = ['projects', 'tasks', 'documents', 'calendar', 'helpdesk'];
 foreach ($moduleRoutes as $moduleRoute) {
     $app->get('/' . $moduleRoute, function (Request $request, Response $response) use ($container, $moduleRoute) {
         // Auth-Check
