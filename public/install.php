@@ -126,19 +126,180 @@ if ($step == 3 && isset($_SESSION['db_configured'])) {
             }
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             
-            // Führe Migrationen aus
-            $migrationFiles = glob(__DIR__ . '/../database/migrations/*.sql');
-            sort($migrationFiles);
-            
-            foreach ($migrationFiles as $file) {
-                $sql = file_get_contents($file);
-                // Ersetze SQLite-spezifische Syntax für MySQL
-                if ($dbConfig['type'] === 'mysql') {
-                    $sql = str_replace('AUTOINCREMENT', 'AUTO_INCREMENT', $sql);
-                    $sql = str_replace('datetime(\'now\')', 'NOW()', $sql);
-                }
-                $pdo->exec($sql);
+            // Erstelle Tabellen direkt (da keine Migrations-Dateien vorhanden)
+            if ($dbConfig['type'] === 'mysql') {
+                // MySQL Schema
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS tenants (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL,
+                        subdomain VARCHAR(100) UNIQUE NOT NULL,
+                        is_active TINYINT(1) DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+                
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        tenant_id INT NOT NULL,
+                        email VARCHAR(255) NOT NULL,
+                        password_hash VARCHAR(255) NOT NULL,
+                        first_name VARCHAR(100),
+                        last_name VARCHAR(100),
+                        role VARCHAR(50) DEFAULT 'user',
+                        is_active TINYINT(1) DEFAULT 1,
+                        email_verified_at TIMESTAMP NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        UNIQUE KEY unique_email_per_tenant (tenant_id, email),
+                        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+                
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS bm_modules (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        code VARCHAR(100) UNIQUE NOT NULL,
+                        name VARCHAR(255) NOT NULL,
+                        description TEXT,
+                        category VARCHAR(100),
+                        price_per_user DECIMAL(10,2) DEFAULT 1.00,
+                        is_core TINYINT(1) DEFAULT 0,
+                        is_active TINYINT(1) DEFAULT 1,
+                        display_order INT DEFAULT 100,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+                
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS bm_module_licenses (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        tenant_id INT NOT NULL,
+                        module_id INT NOT NULL,
+                        user_id INT NOT NULL,
+                        is_enabled TINYINT(1) DEFAULT 1,
+                        activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        expires_at TIMESTAMP NULL,
+                        UNIQUE KEY unique_license (tenant_id, module_id, user_id),
+                        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+                        FOREIGN KEY (module_id) REFERENCES bm_modules(id) ON DELETE CASCADE,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+                
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS time_entries (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id INT NOT NULL,
+                        tenant_id INT NOT NULL,
+                        date DATE NOT NULL,
+                        start_time TIME NOT NULL,
+                        end_time TIME,
+                        total_hours DECIMAL(5,2),
+                        overtime_hours DECIMAL(5,2),
+                        status VARCHAR(50) DEFAULT 'active',
+                        notes TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+                
+            } else {
+                // SQLite Schema
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS tenants (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        subdomain TEXT UNIQUE NOT NULL,
+                        is_active INTEGER DEFAULT 1,
+                        created_at TEXT DEFAULT (datetime('now')),
+                        updated_at TEXT DEFAULT (datetime('now'))
+                    )
+                ");
+                
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        tenant_id INTEGER NOT NULL,
+                        email TEXT NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        first_name TEXT,
+                        last_name TEXT,
+                        role TEXT DEFAULT 'user',
+                        is_active INTEGER DEFAULT 1,
+                        email_verified_at TEXT,
+                        created_at TEXT DEFAULT (datetime('now')),
+                        updated_at TEXT DEFAULT (datetime('now')),
+                        UNIQUE(tenant_id, email),
+                        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+                    )
+                ");
+                
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS bm_modules (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        code TEXT UNIQUE NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT,
+                        category TEXT,
+                        price_per_user REAL DEFAULT 1.00,
+                        is_core INTEGER DEFAULT 0,
+                        is_active INTEGER DEFAULT 1,
+                        display_order INTEGER DEFAULT 100,
+                        created_at TEXT DEFAULT (datetime('now'))
+                    )
+                ");
+                
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS bm_module_licenses (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        tenant_id INTEGER NOT NULL,
+                        module_id INTEGER NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        is_enabled INTEGER DEFAULT 1,
+                        activated_at TEXT DEFAULT (datetime('now')),
+                        expires_at TEXT,
+                        UNIQUE(tenant_id, module_id, user_id),
+                        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+                        FOREIGN KEY (module_id) REFERENCES bm_modules(id) ON DELETE CASCADE,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                ");
+                
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS time_entries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        tenant_id INTEGER NOT NULL,
+                        date TEXT NOT NULL,
+                        start_time TEXT NOT NULL,
+                        end_time TEXT,
+                        total_hours REAL,
+                        overtime_hours REAL,
+                        status TEXT DEFAULT 'active',
+                        notes TEXT,
+                        created_at TEXT DEFAULT (datetime('now')),
+                        updated_at TEXT DEFAULT (datetime('now')),
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+                    )
+                ");
             }
+            
+            // Füge Core-Module hinzu
+            $pdo->exec("
+                INSERT IGNORE INTO bm_modules (code, name, description, category, is_core, is_active, display_order) VALUES
+                ('dashboard', 'Dashboard', 'Übersicht und Statistiken', 'Core', 1, 1, 1),
+                ('users', 'Benutzerverwaltung', 'Benutzer und Rollen verwalten', 'Core', 1, 1, 2),
+                ('settings', 'Einstellungen', 'System-Einstellungen', 'Core', 1, 1, 99),
+                ('time-tracking', 'Zeiterfassung', 'Arbeitszeiten erfassen', 'Productivity', 0, 1, 10),
+                ('invoices', 'Rechnungen', 'Rechnungserstellung und -verwaltung', 'Finance', 0, 1, 20),
+                ('customers', 'Kundenverwaltung', 'Kunden und Kontakte verwalten', 'CRM', 0, 1, 30)
+            ");
             
             $_SESSION['db_migrated'] = true;
             header('Location: install.php?step=4' . $force);
