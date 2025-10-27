@@ -674,6 +674,54 @@ $app->group('/time-tracking', function (RouteCollectorProxy $group) use ($contai
     });
 });
 
+// Update Routes
+$app->group('/updates', function (RouteCollectorProxy $group) use ($container) {
+    // Übersicht
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Updates\UpdateController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Update installieren
+    $group->post('/install/{version}', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Updates\UpdateController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->install($request, $response, $args);
+    });
+});
+
+// Update API Routes (für Kunden-Instanzen)
+$app->group('/api/updates', function (RouteCollectorProxy $group) use ($container) {
+    // Prüfe auf Updates
+    $group->get('/check', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Updates\UpdateApiController(
+            $container->get(Database::class)
+        );
+        return $controller->check($request, $response);
+    });
+    
+    // Download Update-Package
+    $group->get('/download/{version}', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Updates\UpdateApiController(
+            $container->get(Database::class)
+        );
+        return $controller->download($request, $response, $args);
+    });
+    
+    // Heartbeat
+    $group->post('/heartbeat', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Updates\UpdateApiController(
+            $container->get(Database::class)
+        );
+        return $controller->heartbeat($request, $response);
+    });
+});
+
 // Partner Console Routes (nur für sys-experts.de Admins)
 $app->group('/partner-console', function (RouteCollectorProxy $group) use ($container) {
     // Dashboard
