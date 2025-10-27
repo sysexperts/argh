@@ -27,47 +27,84 @@ class NavigationService
     {
         $pdo = $this->db->getConnection();
 
-        // Hole alle Module mit Lizenzen für diesen User
+        // Core Navigation - immer sichtbar
+        $coreNav = [
+            'Core' => [
+                'items' => [
+                    [
+                        'label' => 'Dashboard',
+                        'url' => '/dashboard',
+                        'icon' => 'dashboard',
+                        'active' => $currentPath === '/dashboard',
+                    ],
+                    [
+                        'label' => 'Marketplace',
+                        'url' => '/modules',
+                        'icon' => 'store',
+                        'active' => $currentPath === '/modules',
+                    ],
+                ]
+            ]
+        ];
+
+        // Admin-spezifische Core-Links
+        if ($userRole === 'admin') {
+            $coreNav['Core']['items'][] = [
+                'label' => 'Benutzerverwaltung',
+                'url' => '/users',
+                'icon' => 'group',
+                'active' => $currentPath === '/users',
+            ];
+        }
+
+        // Hole aktivierte Module für diesen User
         $stmt = $pdo->prepare("
             SELECT 
                 m.id,
                 m.code,
                 m.name,
-                m.icon,
                 m.url,
                 m.category,
-                m.display_order,
-                ml.is_enabled
+                m.display_order
             FROM bm_modules m
-            LEFT JOIN bm_module_licenses ml ON m.id = ml.module_id AND ml.user_id = ?
+            INNER JOIN bm_module_licenses ml ON m.id = ml.module_id
             WHERE m.is_active = 1 
-            AND (m.is_core = 1 OR ml.is_enabled = 1)
+            AND ml.user_id = ?
+            AND ml.is_enabled = 1
             ORDER BY m.display_order ASC, m.name ASC
         ");
         $stmt->execute([$userId]);
         $modules = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        // Gruppiere nach Kategorie für Layout-Format
-        $grouped = [];
+        // Icon-Mapping für Module (Material Icons)
+        $iconMap = [
+            'time-tracking' => 'schedule',
+            'invoices' => 'receipt',
+            'customers' => 'business',
+            'calendar' => 'calendar_month',
+            'helpdesk' => 'support_agent',
+            'projects' => 'folder',
+            'tasks' => 'task',
+            'documents' => 'description',
+            'audit-logs' => 'history',
+        ];
+
+        // Gruppiere Module nach Kategorie
+        $moduleNav = [];
         foreach ($modules as $module) {
-            $category = $module['category'] ?? 'Sonstiges';
-            if (!isset($grouped[$category])) {
-                $grouped[$category] = ['items' => []];
+            $category = $module['category'] ?? 'Module';
+            if (!isset($moduleNav[$category])) {
+                $moduleNav[$category] = ['items' => []];
             }
-            $grouped[$category]['items'][] = [
-                'id' => $module['id'],
-                'code' => $module['code'],
+            $moduleNav[$category]['items'][] = [
                 'label' => $module['name'],
-                'name' => $module['name'],
-                'icon' => $module['icon'] ?? '📦',
                 'url' => $module['url'] ?? '/' . strtolower($module['code']),
-                'route' => $module['url'] ?? '/' . strtolower($module['code']),
+                'icon' => $iconMap[$module['code']] ?? 'extension',
                 'active' => ($module['url'] ?? '') === $currentPath,
-                'is_active' => ($module['url'] ?? '') === $currentPath,
-                'is_enabled' => (bool)$module['is_enabled'],
             ];
         }
 
-        return $grouped;
+        // Kombiniere Core + Module Navigation
+        return array_merge($coreNav, $moduleNav);
     }
 }

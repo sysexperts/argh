@@ -70,22 +70,33 @@
                 </div>
 
                 <!-- Navigation -->
-                <nav class="flex-1 overflow-y-auto px-4 py-6 space-y-2">
-                    <?php foreach ($navigation ?? [] as $group): ?>
-                        <?php foreach ($group['items'] ?? [] as $item): ?>
-                            <a href="<?= htmlspecialchars($item['url']) ?>" 
-                               class="flex items-center px-4 py-2.5 rounded text-sm font-medium transition-colors <?= ($item['active'] ?? false) ? 'text-white bg-primary shadow-sm' : 'text-text-muted-light dark:text-text-muted-dark hover:bg-background-light dark:hover:bg-background-dark hover:text-primary' ?>">
-                                <?php if (isset($item['icon'])): ?>
-                                    <span class="mr-3 text-xl"><?= $item['icon'] ?></span>
-                                <?php endif; ?>
-                                <span><?= htmlspecialchars($item['label']) ?></span>
-                                <?php if (isset($item['badge'])): ?>
-                                    <span class="ml-auto px-2 py-0.5 text-xs font-semibold rounded-full bg-primary bg-opacity-20">
-                                        <?= htmlspecialchars($item['badge']) ?>
-                                    </span>
-                                <?php endif; ?>
-                            </a>
-                        <?php endforeach; ?>
+                <nav class="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+                    <?php foreach ($navigation ?? [] as $categoryName => $group): ?>
+                        <div>
+                            <?php if ($categoryName !== 'Core'): ?>
+                                <div class="px-4 mb-2">
+                                    <p class="text-xs font-semibold text-text-muted-light dark:text-text-muted-dark uppercase tracking-wider">
+                                        <?= htmlspecialchars($categoryName) ?>
+                                    </p>
+                                </div>
+                            <?php endif; ?>
+                            <div class="space-y-1">
+                                <?php foreach ($group['items'] ?? [] as $item): ?>
+                                    <a href="<?= htmlspecialchars($item['url']) ?>" 
+                                       class="flex items-center px-4 py-2.5 rounded text-sm font-medium transition-colors <?= ($item['active'] ?? false) ? 'text-white bg-primary shadow-sm' : 'text-text-muted-light dark:text-text-muted-dark hover:bg-background-light dark:hover:bg-background-dark hover:text-primary' ?>">
+                                        <?php if (isset($item['icon'])): ?>
+                                            <span class="material-symbols-outlined mr-3 text-base"><?= $item['icon'] ?></span>
+                                        <?php endif; ?>
+                                        <span><?= htmlspecialchars($item['label']) ?></span>
+                                        <?php if (isset($item['badge'])): ?>
+                                            <span class="ml-auto px-2 py-0.5 text-xs font-semibold rounded-full bg-primary bg-opacity-20">
+                                                <?= htmlspecialchars($item['badge']) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
                     <?php endforeach; ?>
                 </nav>
 
