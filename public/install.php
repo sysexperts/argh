@@ -51,28 +51,63 @@ if ($step == 1) {
 
 // Schritt 2: Datenbank-Konfiguration
 if ($step == 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $dbType = $_POST['db_type'] ?? 'sqlite';
+    $dbType = $_POST['db_type'] ?? 'mysql';
     
-    if ($dbType === 'sqlite') {
-        $dbPath = __DIR__ . '/../database/business_manager.sqlite';
-        
-        // Erstelle .env Datei
-        $envContent = "# Business Manager Configuration\n";
-        $envContent .= "APP_ENV=production\n";
-        $envContent .= "APP_DEBUG=false\n";
-        $envContent .= "APP_URL=" . ($_POST['app_url'] ?? 'http://localhost') . "\n\n";
+    // Erstelle .env Datei
+    $envContent = "# Business Manager Configuration\n";
+    $envContent .= "APP_ENV=production\n";
+    $envContent .= "APP_DEBUG=false\n";
+    $envContent .= "APP_URL=" . ($_POST['app_url'] ?? 'http://localhost') . "\n\n";
+    
+    if ($dbType === 'mysql') {
+        // Teste MySQL-Verbindung
+        try {
+            $testDsn = "mysql:host={$_POST['db_host']};dbname={$_POST['db_name']};charset=utf8mb4";
+            $testPdo = new PDO($testDsn, $_POST['db_user'], $_POST['db_password']);
+            $testPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            
+            // Verbindung erfolgreich
+            $envContent .= "DB_TYPE=mysql\n";
+            $envContent .= "DB_HOST=" . $_POST['db_host'] . "\n";
+            $envContent .= "DB_NAME=" . $_POST['db_name'] . "\n";
+            $envContent .= "DB_USER=" . $_POST['db_user'] . "\n";
+            $envContent .= "DB_PASSWORD=" . $_POST['db_password'] . "\n";
+            $envContent .= "DB_PORT=" . ($_POST['db_port'] ?? '3306') . "\n\n";
+            
+            // Speichere PDO in Session für späteren Gebrauch
+            $_SESSION['db_config'] = [
+                'type' => 'mysql',
+                'host' => $_POST['db_host'],
+                'name' => $_POST['db_name'],
+                'user' => $_POST['db_user'],
+                'password' => $_POST['db_password'],
+                'port' => $_POST['db_port'] ?? '3306'
+            ];
+            
+        } catch (PDOException $e) {
+            $errors[] = 'Datenbankverbindung fehlgeschlagen: ' . $e->getMessage();
+            $errors[] = 'Bitte prüfe deine MySQL-Zugangsdaten.';
+        }
+    } else {
+        // SQLite
         $envContent .= "DB_TYPE=sqlite\n";
         $envContent .= "DB_PATH=database/business_manager.sqlite\n\n";
-        $envContent .= "SESSION_LIFETIME=7200\n";
-        $envContent .= "SESSION_SECURE=" . (isset($_SERVER['HTTPS']) ? 'true' : 'false') . "\n";
         
-        if (file_put_contents(__DIR__ . '/../.env', $envContent)) {
-            $_SESSION['db_configured'] = true;
-            header('Location: install.php?step=3' . $force);
-            exit;
-        } else {
-            $errors[] = 'Konnte .env Datei nicht erstellen. Prüfe Schreibrechte.';
-        }
+        $_SESSION['db_config'] = [
+            'type' => 'sqlite',
+            'path' => __DIR__ . '/../database/business_manager.sqlite'
+        ];
+    }
+    
+    $envContent .= "SESSION_LIFETIME=7200\n";
+    $envContent .= "SESSION_SECURE=" . (isset($_SERVER['HTTPS']) ? 'true' : 'false') . "\n";
+    
+    if (empty($errors) && file_put_contents(__DIR__ . '/../.env', $envContent)) {
+        $_SESSION['db_configured'] = true;
+        header('Location: install.php?step=3' . $force);
+        exit;
+    } elseif (empty($errors)) {
+        $errors[] = 'Konnte .env Datei nicht erstellen. Prüfe Schreibrechte.';
     }
 }
 
@@ -80,7 +115,15 @@ if ($step == 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($step == 3 && isset($_SESSION['db_configured'])) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
-            $pdo = new PDO('sqlite:' . __DIR__ . '/../database/business_manager.sqlite');
+            $dbConfig = $_SESSION['db_config'];
+            
+            // Erstelle PDO-Verbindung basierend auf Typ
+            if ($dbConfig['type'] === 'mysql') {
+                $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['name']};charset=utf8mb4;port={$dbConfig['port']}";
+                $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['password']);
+            } else {
+                $pdo = new PDO('sqlite:' . $dbConfig['path']);
+            }
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             
             // Führe Migrationen aus
@@ -89,6 +132,11 @@ if ($step == 3 && isset($_SESSION['db_configured'])) {
             
             foreach ($migrationFiles as $file) {
                 $sql = file_get_contents($file);
+                // Ersetze SQLite-spezifische Syntax für MySQL
+                if ($dbConfig['type'] === 'mysql') {
+                    $sql = str_replace('AUTOINCREMENT', 'AUTO_INCREMENT', $sql);
+                    $sql = str_replace('datetime(\'now\')', 'NOW()', $sql);
+                }
                 $pdo->exec($sql);
             }
             
@@ -105,7 +153,15 @@ if ($step == 3 && isset($_SESSION['db_configured'])) {
 if ($step == 4 && isset($_SESSION['db_migrated'])) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
-            $pdo = new PDO('sqlite:' . __DIR__ . '/../database/business_manager.sqlite');
+            $dbConfig = $_SESSION['db_config'];
+            
+            // Erstelle PDO-Verbindung basierend auf Typ
+            if ($dbConfig['type'] === 'mysql') {
+                $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['name']};charset=utf8mb4;port={$dbConfig['port']}";
+                $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['password']);
+            } else {
+                $pdo = new PDO('sqlite:' . $dbConfig['path']);
+            }
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             
             // Erstelle Tenant
@@ -149,11 +205,13 @@ if ($step == 5 && isset($_SESSION['admin_created'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Business Manager - Installation</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <style>
         :root {
             --primary: #6366f1;
         }
+        [x-cloak] { display: none !important; }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -232,23 +290,70 @@ if ($step == 5 && isset($_SESSION['admin_created'])) {
                     <!-- Schritt 2: Datenbank-Konfiguration -->
                     <h2 class="text-2xl font-bold mb-6">Datenbank konfigurieren</h2>
                     
-                    <form method="POST" class="space-y-4">
+                    <form method="POST" class="space-y-4" x-data="{ dbType: 'mysql' }">
                         <div>
                             <label class="block text-sm font-medium mb-1">Anwendungs-URL</label>
                             <input type="url" name="app_url" value="<?= 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['HTTP_HOST'] ?>" required class="w-full px-4 py-2 border rounded-lg">
                             <p class="text-xs text-gray-500 mt-1">Die URL unter der die Anwendung erreichbar ist</p>
                         </div>
 
-                        <input type="hidden" name="db_type" value="sqlite">
-                        
-                        <div class="bg-blue-50 border border-blue-200 p-4 rounded">
-                            <p class="text-sm text-blue-800">
-                                <strong>Datenbank:</strong> SQLite wird verwendet (database/business_manager.sqlite)
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Datenbank-Typ</label>
+                            <select name="db_type" x-model="dbType" class="w-full px-4 py-2 border rounded-lg">
+                                <option value="mysql">MySQL / MariaDB (empfohlen für Strato)</option>
+                                <option value="sqlite">SQLite (nur für lokale Tests)</option>
+                            </select>
+                        </div>
+
+                        <!-- MySQL Felder -->
+                        <div x-show="dbType === 'mysql'" class="space-y-4">
+                            <div class="bg-blue-50 border border-blue-200 p-4 rounded mb-4">
+                                <p class="text-sm text-blue-800 font-semibold mb-2">📋 MySQL-Datenbank bei Strato erstellen:</p>
+                                <ol class="text-xs text-blue-700 space-y-1 ml-4 list-decimal">
+                                    <li>Strato-Kundenbereich → Datenbanken → MySQL</li>
+                                    <li>"Neue Datenbank erstellen"</li>
+                                    <li>Zugangsdaten notieren und hier eintragen</li>
+                                </ol>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Datenbank-Host</label>
+                                    <input type="text" name="db_host" value="localhost" required class="w-full px-4 py-2 border rounded-lg">
+                                    <p class="text-xs text-gray-500 mt-1">Meist: localhost oder rdbms.strato.de</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Port</label>
+                                    <input type="text" name="db_port" value="3306" required class="w-full px-4 py-2 border rounded-lg">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Datenbank-Name</label>
+                                <input type="text" name="db_name" placeholder="z.B. db123456" required class="w-full px-4 py-2 border rounded-lg">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Benutzername</label>
+                                    <input type="text" name="db_user" placeholder="z.B. dbu123456" required class="w-full px-4 py-2 border rounded-lg">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Passwort</label>
+                                    <input type="password" name="db_password" required class="w-full px-4 py-2 border rounded-lg">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SQLite Info -->
+                        <div x-show="dbType === 'sqlite'" class="bg-yellow-50 border border-yellow-200 p-4 rounded">
+                            <p class="text-sm text-yellow-800">
+                                <strong>⚠️ Hinweis:</strong> SQLite ist nur für lokale Tests geeignet. Für Produktiv-Umgebungen (Strato) verwenden Sie bitte MySQL.
                             </p>
                         </div>
 
                         <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700">
-                            Konfiguration speichern
+                            Verbindung testen & speichern
                         </button>
                     </form>
 
