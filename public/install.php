@@ -67,12 +67,12 @@ if ($step == 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $testPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             
             // Verbindung erfolgreich
-            $envContent .= "DB_TYPE=mysql\n";
+            $envContent .= "DB_CONNECTION=mysql\n";
             $envContent .= "DB_HOST=" . $_POST['db_host'] . "\n";
-            $envContent .= "DB_NAME=" . $_POST['db_name'] . "\n";
-            $envContent .= "DB_USER=" . $_POST['db_user'] . "\n";
-            $envContent .= "DB_PASSWORD=" . $_POST['db_password'] . "\n";
-            $envContent .= "DB_PORT=" . ($_POST['db_port'] ?? '3306') . "\n\n";
+            $envContent .= "DB_PORT=" . ($_POST['db_port'] ?? '3306') . "\n";
+            $envContent .= "DB_DATABASE=" . $_POST['db_name'] . "\n";
+            $envContent .= "DB_USERNAME=" . $_POST['db_user'] . "\n";
+            $envContent .= "DB_PASSWORD=" . $_POST['db_password'] . "\n\n";
             
             // Speichere PDO in Session für späteren Gebrauch
             $_SESSION['db_config'] = [
@@ -90,8 +90,8 @@ if ($step == 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } else {
         // SQLite
-        $envContent .= "DB_TYPE=sqlite\n";
-        $envContent .= "DB_PATH=database/business_manager.sqlite\n\n";
+        $envContent .= "DB_CONNECTION=sqlite\n";
+        $envContent .= "DB_DATABASE=database/business_manager.sqlite\n\n";
         
         $_SESSION['db_config'] = [
             'type' => 'sqlite',
