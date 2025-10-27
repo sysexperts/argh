@@ -33,7 +33,7 @@ class SessionManager
             INSERT INTO user_sessions (
                 session_id, user_id, ip_address, user_agent, 
                 last_activity, created_at
-            ) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+            ) VALUES (?, ?, ?, ?, NOW(), NOW())
         ");
         $stmt->execute([$sessionId, $user->getId(), $ipAddress, $userAgent]);
 
@@ -93,7 +93,7 @@ class SessionManager
         // Last Activity aktualisieren
         $stmt = $this->pdo->prepare("
             UPDATE user_sessions 
-            SET last_activity = datetime('now') 
+            SET last_activity = NOW() 
             WHERE session_id = ?
         ");
         $stmt->execute([$sessionId]);

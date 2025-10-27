@@ -88,7 +88,7 @@ class AuthService
         // Erstelle neuen Tenant
         $stmt = $this->pdo->prepare("
             INSERT INTO tenants (name, domain, created_at, updated_at)
-            VALUES (?, ?, datetime('now'), datetime('now'))
+            VALUES (?, ?, NOW(), NOW())
         ");
         $stmt->execute([$companyName, strtolower(str_replace(' ', '-', $companyName)) . '.local']);
         $tenantId = (int)$this->pdo->lastInsertId();
@@ -102,7 +102,7 @@ class AuthService
                 tenant_id, email, password_hash, first_name, last_name,
                 role, is_active, email_verified_at, email_verification_token,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, 'admin', 1, NULL, ?, datetime('now'), datetime('now'))
+            ) VALUES (?, ?, ?, ?, ?, 'admin', 1, NULL, ?, NOW(), NOW())
         ");
         
         $stmt->execute([
@@ -139,9 +139,9 @@ class AuthService
 
         $stmt = $this->pdo->prepare("
             UPDATE users 
-            SET email_verified_at = datetime('now'), 
+            SET email_verified_at = NOW(), 
                 email_verification_token = NULL,
-                updated_at = datetime('now')
+                updated_at = NOW()
             WHERE id = ?
         ");
         $stmt->execute([$user['id']]);
