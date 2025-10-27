@@ -110,6 +110,11 @@
                         <a href="/settings" class="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
                             ⚙️ Einstellungen
                         </a>
+                        <?php if (isset($user['email']) && $user['email'] === 'admin@sys-experts.de'): ?>
+                        <a href="/partner-console" class="block px-3 py-2 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg font-semibold">
+                            🔧 Partner Console
+                        </a>
+                        <?php endif; ?>
                         <a href="/auth/logout" class="block px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
                             🚪 Abmelden
                         </a>

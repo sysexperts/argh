@@ -673,3 +673,42 @@ $app->group('/time-tracking', function (RouteCollectorProxy $group) use ($contai
         return $controller->show($request, $response, $args);
     });
 });
+
+// Partner Console Routes (nur für sys-experts.de Admins)
+$app->group('/partner-console', function (RouteCollectorProxy $group) use ($container) {
+    // Dashboard
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\PartnerConsole\PartnerConsoleController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+    
+    // Neuer Mandant - Formular
+    $group->get('/tenants/create', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\PartnerConsole\PartnerConsoleController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->create($request, $response);
+    });
+    
+    // Mandant speichern
+    $group->post('/tenants', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\PartnerConsole\PartnerConsoleController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->store($request, $response);
+    });
+    
+    // Mandanten-Details
+    $group->get('/tenants/{id}', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\PartnerConsole\PartnerConsoleController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->show($request, $response, $args);
+    });
+});

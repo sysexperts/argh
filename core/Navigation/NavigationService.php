@@ -53,12 +53,6 @@ class NavigationService
                 'icon' => '🛒',
                 'active' => str_starts_with($currentPath, '/marketplace'),
             ],
-            [
-                'label' => 'Einstellungen',
-                'url' => '/settings',
-                'icon' => '⚙️',
-                'active' => str_starts_with($currentPath, '/settings'),
-            ],
         ];
 
         // Admin-spezifische Navigation
@@ -122,6 +116,14 @@ class NavigationService
                 $items = array_merge($items, $licensedModules);
             }
         }
+        
+        // Einstellungen (für alle)
+        $items[] = [
+            'label' => 'Einstellungen',
+            'url' => '/settings',
+            'icon' => '⚙️',
+            'active' => str_starts_with($currentPath, '/settings'),
+        ];
 
         $navigation = [
             [
