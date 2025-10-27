@@ -109,28 +109,13 @@ class NavigationService
         $items = $baseItems;
         
         if ($isAdmin) {
-            // Admin sieht alles (Admin-Items + alle verfügbaren Module)
-            $adminModules = [
-                [
-                    'label' => 'Kunden',
-                    'url' => '/customers',
-                    'icon' => '👥',
-                    'active' => str_starts_with($currentPath, '/customers'),
-                ],
-                [
-                    'label' => 'Rechnungen',
-                    'url' => '/invoices',
-                    'icon' => '🧾',
-                    'active' => str_starts_with($currentPath, '/invoices'),
-                ],
-                [
-                    'label' => 'Zeiterfassung',
-                    'url' => '/time-tracking',
-                    'icon' => '⏱️',
-                    'active' => str_starts_with($currentPath, '/time-tracking'),
-                ],
-            ];
-            $items = array_merge($items, $adminItems, $adminModules);
+            // Admin sieht Admin-Items + alle lizenzierten Module
+            $items = array_merge($items, $adminItems);
+            
+            // Füge alle lizenzierten Module hinzu (auch für Admin)
+            if (!empty($licensedModules)) {
+                $items = array_merge($items, $licensedModules);
+            }
         } else {
             // Normale User sehen nur ihre lizenzierten Module
             if (!empty($licensedModules)) {
@@ -229,6 +214,7 @@ class NavigationService
             'projects' => '/projects',
             'documents' => '/documents',
             'calendar' => '/calendar',
+            'helpdesk' => '/helpdesk',
         ];
         
         return $urlMap[$code] ?? '/modules/' . $code;
@@ -250,6 +236,7 @@ class NavigationService
             'tasks' => '✅',
             'calendar' => '📅',
             'contacts' => '👤',
+            'customers' => '👤',
             'documents' => '📄',
             'reports' => '📈',
             'inventory' => '📦',
@@ -258,6 +245,7 @@ class NavigationService
             'payroll' => '💵',
             'expenses' => '💳',
             'tickets' => '🎫',
+            'helpdesk' => '🎫',
             'wiki' => '📚',
             'chat' => '💬',
         ];

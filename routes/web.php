@@ -503,6 +503,57 @@ $app->group('/helpdesk', function (RouteCollectorProxy $group) use ($container) 
     });
 });
 
+// Calendar Routes
+$app->group('/calendar', function (RouteCollectorProxy $group) use ($container) {
+    // Kalender-Ansicht
+    $group->get('', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Calendar\CalendarController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->index($request, $response);
+    });
+});
+
+// Calendar API Routes
+$app->group('/api/calendar', function (RouteCollectorProxy $group) use ($container) {
+    // Events abrufen
+    $group->get('/events', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Calendar\CalendarController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->getEvents($request, $response);
+    });
+    
+    // Event erstellen
+    $group->post('/events', function (Request $request, Response $response) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Calendar\CalendarController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->store($request, $response);
+    });
+    
+    // Event aktualisieren
+    $group->put('/events/{id}', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Calendar\CalendarController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->update($request, $response, $args);
+    });
+    
+    // Event löschen
+    $group->delete('/events/{id}', function (Request $request, Response $response, array $args) use ($container) {
+        $controller = new \SysExperts\BusinessManager\Calendar\CalendarController(
+            $container->get(Database::class),
+            $container->get(SessionService::class)
+        );
+        return $controller->delete($request, $response, $args);
+    });
+});
+
 // Time Tracking Routes
 $app->group('/time-tracking', function (RouteCollectorProxy $group) use ($container) {
     // Übersicht

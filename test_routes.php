@@ -32,22 +32,22 @@ $routes = $routeCollector->getRoutes();
 
 echo "=== Registrierte Routes ===\n\n";
 
-$helpdeskRoutes = [];
+$calendarRoutes = [];
 foreach ($routes as $route) {
     $pattern = $route->getPattern();
-    if (strpos($pattern, 'helpdesk') !== false) {
-        $helpdeskRoutes[] = [
+    if (strpos($pattern, 'calendar') !== false) {
+        $calendarRoutes[] = [
             'pattern' => $pattern,
             'methods' => implode(', ', $route->getMethods())
         ];
     }
 }
 
-if (empty($helpdeskRoutes)) {
-    echo "❌ KEINE Helpdesk-Routes gefunden!\n";
+if (empty($calendarRoutes)) {
+    echo "❌ KEINE Calendar-Routes gefunden!\n";
 } else {
-    echo "✓ Helpdesk-Routes gefunden:\n\n";
-    foreach ($helpdeskRoutes as $route) {
+    echo "✓ Calendar-Routes gefunden:\n\n";
+    foreach ($calendarRoutes as $route) {
         echo "  {$route['methods']} {$route['pattern']}\n";
     }
 }
