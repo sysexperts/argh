@@ -12,12 +12,25 @@
 
 session_start();
 
-// Verhindere erneute Installation wenn bereits installiert
-if (file_exists(__DIR__ . '/../.env') && !isset($_GET['force'])) {
+$step = $_GET['step'] ?? 1;
+$force = isset($_GET['force']) ? '?force=1' : '';
+
+// Verhindere erneute Installation wenn bereits installiert (nur bei Schritt 1)
+if ($step == 1 && file_exists(__DIR__ . '/../.env') && !isset($_GET['force'])) {
     die('Installation bereits abgeschlossen. Lösche die .env Datei oder verwende ?force=1 zum Neuinstallieren.');
 }
 
-$step = $_GET['step'] ?? 1;
+// Bei force=1: Lösche alte Installation
+if (isset($_GET['force']) && $step == 1) {
+    if (file_exists(__DIR__ . '/../.env')) {
+        @unlink(__DIR__ . '/../.env');
+    }
+    if (file_exists(__DIR__ . '/../database/business_manager.sqlite')) {
+        @unlink(__DIR__ . '/../database/business_manager.sqlite');
+    }
+    session_destroy();
+    session_start();
+}
 $errors = [];
 $success = [];
 
@@ -55,7 +68,7 @@ if ($step == 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (file_put_contents(__DIR__ . '/../.env', $envContent)) {
             $_SESSION['db_configured'] = true;
-            header('Location: install.php?step=3');
+            header('Location: install.php?step=3' . $force);
             exit;
         } else {
             $errors[] = 'Konnte .env Datei nicht erstellen. Prüfe Schreibrechte.';
@@ -80,7 +93,7 @@ if ($step == 3 && isset($_SESSION['db_configured'])) {
             }
             
             $_SESSION['db_migrated'] = true;
-            header('Location: install.php?step=4');
+            header('Location: install.php?step=4' . $force);
             exit;
         } catch (PDOException $e) {
             $errors[] = 'Datenbank-Fehler: ' . $e->getMessage();
@@ -115,7 +128,7 @@ if ($step == 4 && isset($_SESSION['db_migrated'])) {
             ]);
             
             $_SESSION['admin_created'] = true;
-            header('Location: install.php?step=5');
+            header('Location: install.php?step=5' . $force);
             exit;
         } catch (PDOException $e) {
             $errors[] = 'Fehler beim Erstellen des Admin-Users: ' . $e->getMessage();
@@ -208,7 +221,7 @@ if ($step == 5 && isset($_SESSION['admin_created'])) {
                     </div>
 
                     <?php if ($allOk): ?>
-                        <a href="install.php?step=2" class="block w-full bg-indigo-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-indigo-700">
+                        <a href="install.php?step=2<?= $force ?>" class="block w-full bg-indigo-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-indigo-700">
                             Weiter zur Datenbank-Konfiguration
                         </a>
                     <?php else: ?>
